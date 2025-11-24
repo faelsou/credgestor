@@ -1,13 +1,14 @@
 import React, { useContext, useMemo, useState } from 'react';
 import { AppContext } from '../../App';
-import { TrendingUp, TrendingDown, Users, AlertTriangle, Send, FileText } from 'lucide-react';
-import { formatCurrency, isLate, sendToN8N } from '../../utils';
+import { TrendingUp, TrendingDown, Users, AlertTriangle, Send, FileText, X, Calendar } from 'lucide-react';
+import { formatCurrency, formatDate, isLate, sendToN8N } from '../../utils';
 import { InstallmentStatus, LoanStatus, UserRole } from '../../types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 export const DashboardHome: React.FC = () => {
   const { clients, installments, loans, user } = useContext(AppContext);
   const [sendingReport, setSendingReport] = useState(false);
+  const [detailFilter, setDetailFilter] = useState<'PAID' | 'RECEIVABLE' | 'LATE' | null>(null);
 
   const stats = useMemo(() => {
     const totalReceived = installments
@@ -32,6 +33,26 @@ export const DashboardHome: React.FC = () => {
     { name: 'A Vencer', value: stats.totalReceivable - stats.totalLate, color: '#3b82f6' }, // Blue-500
     { name: 'Atrasado', value: stats.totalLate, color: '#ef4444' }, // Red-500
   ];
+
+  const detailedInstallments = useMemo(() => {
+    if (!detailFilter) return [];
+
+    const base = installments.filter(inst => {
+      if (detailFilter === 'PAID') return inst.status === InstallmentStatus.PAID;
+      if (detailFilter === 'LATE') return inst.status !== InstallmentStatus.PAID && isLate(inst.dueDate);
+      return inst.status !== InstallmentStatus.PAID && !isLate(inst.dueDate);
+    });
+
+    return base.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  }, [detailFilter, installments]);
+
+  const detailTitle = detailFilter === 'PAID'
+    ? 'Parcelas Recebidas'
+    : detailFilter === 'RECEIVABLE'
+      ? 'Parcelas a Receber'
+      : 'Parcelas em Atraso';
+
+  const detailTotal = detailedInstallments.reduce((acc, inst) => acc + (inst.amountPaid || inst.amount), 0);
 
   const handleSendAdminReport = async () => {
     setSendingReport(true);
@@ -82,34 +103,86 @@ export const DashboardHome: React.FC = () => {
       
       {/* KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard 
-          title="Total Recebido" 
-          value={formatCurrency(stats.totalReceived)} 
-          icon={<TrendingUp className="text-white" />} 
+        <KPICard
+          title="Total Recebido"
+          value={formatCurrency(stats.totalReceived)}
+          icon={<TrendingUp className="text-white" />}
           bg="bg-emerald-500"
+          onClick={() => setDetailFilter('PAID')}
+          active={detailFilter === 'PAID'}
         />
-        <KPICard 
-          title="A Receber" 
-          value={formatCurrency(stats.totalReceivable)} 
-          icon={<TrendingDown className="text-white" />} 
+        <KPICard
+          title="A Receber"
+          value={formatCurrency(stats.totalReceivable)}
+          icon={<TrendingDown className="text-white" />}
           bg="bg-blue-500"
+          onClick={() => setDetailFilter('RECEIVABLE')}
+          active={detailFilter === 'RECEIVABLE'}
         />
-        <KPICard 
-          title="Em Atraso" 
-          value={formatCurrency(stats.totalLate)} 
+        <KPICard
+          title="Em Atraso"
+          value={formatCurrency(stats.totalLate)}
           subtext={`${stats.lateCount} parcelas`}
-          icon={<AlertTriangle className="text-white" />} 
+          icon={<AlertTriangle className="text-white" />}
           bg="bg-red-500"
+          onClick={() => setDetailFilter('LATE')}
+          active={detailFilter === 'LATE'}
         />
-         <KPICard 
-          title="Empréstimos Ativos" 
-          value={stats.activeLoans.toString()} 
-          icon={<Users className="text-emerald-600" />} 
+         <KPICard
+          title="Empréstimos Ativos"
+          value={stats.activeLoans.toString()}
+          icon={<Users className="text-emerald-600" />}
           bg="bg-white border border-slate-200"
           textColor="text-slate-800"
           iconWrapper="bg-emerald-100"
         />
       </div>
+
+      {detailFilter && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+            <div>
+              <p className="text-xs uppercase font-semibold text-slate-500">{detailTitle}</p>
+              <h3 className="text-2xl font-bold text-slate-800">{formatCurrency(detailTotal)}</h3>
+              <p className="text-sm text-slate-500">{detailedInstallments.length} registros</p>
+            </div>
+            <button
+              onClick={() => setDetailFilter(null)}
+              className="self-start md:self-auto px-3 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-200 flex items-center gap-2"
+            >
+              <X size={16} /> Fechar lista
+            </button>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {detailedInstallments.map(inst => {
+              const client = clients.find(c => c.id === inst.clientId);
+              const late = inst.status !== InstallmentStatus.PAID && isLate(inst.dueDate);
+              return (
+                <div key={inst.id} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-slate-500 flex items-center gap-1"><Calendar size={14} /> {formatDate(inst.dueDate)}</p>
+                    <p className="text-base font-semibold text-slate-800">{client?.name}</p>
+                    <p className="text-xs text-slate-400">Parcela {inst.number}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-slate-900">{formatCurrency(inst.amountPaid || inst.amount)}</p>
+                    {inst.status === InstallmentStatus.PAID && <span className="text-xs text-emerald-600 font-semibold">Pago</span>}
+                    {late && <span className="text-xs text-red-600 font-semibold">Atrasado</span>}
+                    {detailFilter === 'RECEIVABLE' && !late && inst.status !== InstallmentStatus.PAID && (
+                      <span className="text-xs text-blue-600 font-semibold">A Vencer</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {detailedInstallments.length === 0 && (
+              <div className="py-4 text-center text-slate-500 text-sm">Nenhum registro encontrado para este filtro.</div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Chart Section */}
@@ -152,8 +225,12 @@ export const DashboardHome: React.FC = () => {
   );
 };
 
-const KPICard = ({ title, value, icon, subtext, bg, textColor = "text-white", iconWrapper = "bg-white/20" }: any) => (
-  <div className={`${bg} rounded-2xl p-6 shadow-sm transition hover:shadow-md`}>
+const KPICard = ({ title, value, icon, subtext, bg, textColor = "text-white", iconWrapper = "bg-white/20", onClick, active = false }: any) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`${bg} rounded-2xl p-6 shadow-sm transition hover:shadow-md text-left w-full ${onClick ? 'cursor-pointer' : 'cursor-default'} ${active ? 'ring-2 ring-offset-2 ring-slate-800' : ''}`}
+  >
     <div className="flex justify-between items-start">
       <div>
         <p className={`text-sm font-medium ${textColor} opacity-90`}>{title}</p>
@@ -164,5 +241,5 @@ const KPICard = ({ title, value, icon, subtext, bg, textColor = "text-white", ic
         {icon}
       </div>
     </div>
-  </div>
+  </button>
 );
