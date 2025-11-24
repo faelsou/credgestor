@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  credgestor-app:
+    build: .
+    container_name: credgestor-app
+    restart: always
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=production
+    # Se você for usar volumes para persistência no futuro ou logs
+    # volumes:
+    #   - ./logs:/var/log/nginx
