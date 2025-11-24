@@ -101,7 +101,7 @@ export const LandingPage: React.FC<{ onLogin: () => void }> = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <button onClick={() => setShowAuthModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3.5 rounded-xl font-bold text-lg shadow-xl shadow-emerald-200 transition flex items-center justify-center gap-2">
-                Começar Grátis <ArrowRight size={20} />
+                Começar Agora <ArrowRight size={20} />
               </button>
               <a href="#funcionalidades" className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-8 py-3.5 rounded-xl font-bold text-lg transition flex items-center justify-center">
                 Ver como funciona
@@ -228,7 +228,7 @@ export const LandingPage: React.FC<{ onLogin: () => void }> = () => {
             <div className="p-8">
               <h3 className="text-xl font-semibold text-slate-500 uppercase tracking-wide">Plano PRO</h3>
               <div className="mt-4 flex justify-center items-baseline">
-                <span className="text-5xl font-extrabold tracking-tight">R$ 49,90</span>
+                <span className="text-5xl font-extrabold tracking-tight">R$ 149,90</span>
                 <span className="ml-1 text-xl text-slate-500">/mês</span>
               </div>
               <ul className="mt-8 space-y-4 text-left">
@@ -242,7 +242,7 @@ export const LandingPage: React.FC<{ onLogin: () => void }> = () => {
               <button onClick={() => setShowAuthModal(true)} className="mt-8 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-lg transition">
                 Assinar Agora
               </button>
-              <p className="mt-4 text-xs text-slate-400">7 dias de garantia ou seu dinheiro de volta.</p>
+              <p className="mt-4 text-xs text-slate-400">Assine agora e aproveite o plano Pro.</p>
             </div>
           </div>
         </div>
