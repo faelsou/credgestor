@@ -15,8 +15,13 @@ const MOCK_CLIENTS: Client[] = [
     id: '1',
     name: 'João Silva',
     cpf: '123.456.789-00',
-    phone: '11999999999',
+    phone: '(11)99999-9999',
     email: 'joao@email.com',
+    cep: '01001-000',
+    street: 'Praça da Sé',
+    neighborhood: 'Sé',
+    city: 'São Paulo',
+    state: 'SP',
     status: 'active',
     promissoryNote: {
       capital: 1500,
@@ -31,8 +36,13 @@ const MOCK_CLIENTS: Client[] = [
     id: '2',
     name: 'Maria Oliveira',
     cpf: '987.654.321-11',
-    phone: '11988888888',
+    phone: '(11)98888-8888',
     email: 'maria@email.com',
+    cep: '20010-000',
+    street: 'Praça Quinze de Novembro',
+    neighborhood: 'Centro',
+    city: 'Rio de Janeiro',
+    state: 'RJ',
     status: 'active',
     promissoryNote: {
       capital: 2200,
@@ -46,8 +56,13 @@ const MOCK_CLIENTS: Client[] = [
     id: '3',
     name: 'Carlos Souza',
     cpf: '456.789.123-22',
-    phone: '11977777777',
+    phone: '(11)97777-7777',
     email: 'carlos@email.com',
+    cep: '30190-924',
+    street: 'Praça Sete de Setembro',
+    neighborhood: 'Centro',
+    city: 'Belo Horizonte',
+    state: 'MG',
     status: 'blocked',
     promissoryNote: {
       capital: 500,
@@ -84,7 +99,11 @@ export const AppContext = React.createContext<{
   login: (email: string) => boolean;
   logout: () => void;
   addClient: (client: Client) => void;
+  updateClient: (client: Client) => void;
+  deleteClient: (id: string) => void;
   addLoan: (loan: Loan, generatedInstallments: Installment[]) => void;
+  updateLoan: (loan: Loan, generatedInstallments: Installment[]) => void;
+  deleteLoan: (id: string) => void;
   payInstallment: (id: string) => void;
   addUser: (newUser: User) => void;
   removeUser: (id: string) => void;
@@ -130,9 +149,29 @@ const App: React.FC = () => {
     setClients([...clients, client]);
   };
 
+  const updateClient = (client: Client) => {
+    setClients(prev => prev.map(item => item.id === client.id ? client : item));
+  };
+
+  const deleteClient = (id: string) => {
+    setClients(prev => prev.filter(client => client.id !== id));
+    setLoans(prev => prev.filter(loan => loan.clientId !== id));
+    setInstallments(prev => prev.filter(inst => inst.clientId !== id));
+  };
+
   const addLoan = (loan: Loan, generatedInstallments: Installment[]) => {
     setLoans([...loans, loan]);
     setInstallments([...installments, ...generatedInstallments]);
+  };
+
+  const updateLoan = (loan: Loan, generatedInstallments: Installment[]) => {
+    setLoans(prev => prev.map(item => item.id === loan.id ? loan : item));
+    setInstallments(prev => prev.filter(inst => inst.loanId !== loan.id).concat(generatedInstallments));
+  };
+
+  const deleteLoan = (id: string) => {
+    setLoans(prev => prev.filter(loan => loan.id !== id));
+    setInstallments(prev => prev.filter(inst => inst.loanId !== id));
   };
 
   const payInstallment = (id: string) => {
@@ -158,7 +197,24 @@ const App: React.FC = () => {
   };
 
   const value = useMemo(() => ({
-    user, usersList, clients, loans, installments, login, logout, addClient, addLoan, payInstallment, addUser, removeUser, view, setView
+    user,
+    usersList,
+    clients,
+    loans,
+    installments,
+    login,
+    logout,
+    addClient,
+    updateClient,
+    deleteClient,
+    addLoan,
+    updateLoan,
+    deleteLoan,
+    payInstallment,
+    addUser,
+    removeUser,
+    view,
+    setView
   }), [user, usersList, clients, loans, installments, view]);
 
   if (!user) {
