@@ -77,5 +77,6 @@ export interface PromissoryNote {
   issueDate: string;
   dueDate: string;
   indication: IndicationType;
+  numberHash: string;
   observation?: string;
 }
