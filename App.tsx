@@ -11,9 +11,52 @@ import { isLate } from './utils';
 
 // --- MOCK DATA INITIALIZATION ---
 const MOCK_CLIENTS: Client[] = [
-  { id: '1', name: 'João Silva', cpf: '123.456.789-00', phone: '11999999999', email: 'joao@email.com', status: 'active' },
-  { id: '2', name: 'Maria Oliveira', cpf: '987.654.321-11', phone: '11988888888', email: 'maria@email.com', status: 'active' },
-  { id: '3', name: 'Carlos Souza', cpf: '456.789.123-22', phone: '11977777777', email: 'carlos@email.com', status: 'blocked' },
+  {
+    id: '1',
+    name: 'João Silva',
+    cpf: '123.456.789-00',
+    phone: '11999999999',
+    email: 'joao@email.com',
+    status: 'active',
+    promissoryNote: {
+      capital: 1500,
+      interestRate: 8,
+      issueDate: '2023-09-15',
+      dueDate: '2024-09-15',
+      indication: 'Garantia',
+      observation: 'Pagamento na conta 001'
+    }
+  },
+  {
+    id: '2',
+    name: 'Maria Oliveira',
+    cpf: '987.654.321-11',
+    phone: '11988888888',
+    email: 'maria@email.com',
+    status: 'active',
+    promissoryNote: {
+      capital: 2200,
+      interestRate: 10,
+      issueDate: '2023-11-01',
+      dueDate: '2024-11-01',
+      indication: 'Sem Garantia'
+    }
+  },
+  {
+    id: '3',
+    name: 'Carlos Souza',
+    cpf: '456.789.123-22',
+    phone: '11977777777',
+    email: 'carlos@email.com',
+    status: 'blocked',
+    promissoryNote: {
+      capital: 500,
+      interestRate: 6,
+      issueDate: '2023-10-10',
+      dueDate: '2024-01-10',
+      indication: 'Garantia'
+    }
+  },
 ];
 
 const MOCK_USERS: User[] = [

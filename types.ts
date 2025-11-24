@@ -18,6 +18,7 @@ export interface Client {
   email: string;
   status: 'active' | 'blocked';
   notes?: string;
+  promissoryNote?: PromissoryNote;
 }
 
 export enum LoanStatus {
@@ -61,4 +62,15 @@ export interface DashboardStats {
   totalReceived: number;
   totalLate: number;
   activeClients: number;
+}
+
+export type IndicationType = 'Garantia' | 'Sem Garantia';
+
+export interface PromissoryNote {
+  capital: number;
+  interestRate: number;
+  issueDate: string;
+  dueDate: string;
+  indication: IndicationType;
+  observation?: string;
 }

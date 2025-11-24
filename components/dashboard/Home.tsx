@@ -1,6 +1,6 @@
 import React, { useContext, useMemo, useState } from 'react';
 import { AppContext } from '../../App';
-import { TrendingUp, TrendingDown, Users, AlertTriangle, Send, FileText, X, Calendar } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, AlertTriangle, Send, FileText, X, Calendar, DownloadCloud, Filter } from 'lucide-react';
 import { formatCurrency, formatDate, isLate, sendToN8N } from '../../utils';
 import { InstallmentStatus, LoanStatus, UserRole } from '../../types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -9,6 +9,7 @@ export const DashboardHome: React.FC = () => {
   const { clients, installments, loans, user } = useContext(AppContext);
   const [sendingReport, setSendingReport] = useState(false);
   const [detailFilter, setDetailFilter] = useState<'PAID' | 'RECEIVABLE' | 'LATE' | null>(null);
+  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
 
   const stats = useMemo(() => {
     const totalReceived = installments
@@ -53,6 +54,39 @@ export const DashboardHome: React.FC = () => {
       : 'Parcelas em Atraso';
 
   const detailTotal = detailedInstallments.reduce((acc, inst) => acc + (inst.amountPaid || inst.amount), 0);
+
+  const dailyLoans = useMemo(() => loans.filter(loan => loan.startDate === reportDate), [loans, reportDate]);
+  const dailyCapital = dailyLoans.reduce((acc, loan) => acc + loan.amount, 0);
+  const dailyInterest = dailyLoans.reduce((acc, loan) => acc + (loan.totalAmount - loan.amount), 0);
+
+  const exportExcelReport = () => {
+    const data = (reportDate ? loans.filter(loan => loan.startDate === reportDate) : loans).map(loan => {
+      const client = clients.find(c => c.id === loan.clientId);
+      const interest = loan.totalAmount - loan.amount;
+      return {
+        Data: formatDate(loan.startDate),
+        Cliente: client?.name || 'Cliente não encontrado',
+        CPF: client?.cpf || '',
+        Capital: loan.amount,
+        Juros: interest,
+        Total: loan.totalAmount
+      };
+    });
+
+    const header = ['Data', 'Cliente', 'CPF', 'Capital', 'Juros', 'Total'];
+    const rows = data.map(row => [row.Data, row.Cliente, row.CPF, row.Capital, row.Juros, row.Total]);
+    const csvContent = [header, ...rows]
+      .map(line => line.map(value => typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : value).join(';'))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `relatorio_financeiro_${reportDate}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleSendAdminReport = async () => {
     setSendingReport(true);
@@ -136,6 +170,49 @@ export const DashboardHome: React.FC = () => {
           textColor="text-slate-800"
           iconWrapper="bg-emerald-100"
         />
+      </div>
+
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-center gap-2 text-slate-700">
+            <Filter size={16} />
+            <div>
+              <p className="text-xs uppercase font-semibold text-slate-500">Filtros do dia</p>
+              <h3 className="text-lg font-bold text-slate-800">Capital e juros</h3>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <div className="flex items-center gap-2">
+              <Calendar size={16} className="text-slate-500" />
+              <input
+                type="date"
+                value={reportDate}
+                onChange={e => setReportDate(e.target.value)}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+            <button
+              onClick={exportExcelReport}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold flex items-center gap-2 hover:bg-emerald-700 transition"
+            >
+              <DownloadCloud size={16} /> Exportar Excel
+            </button>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-3 gap-4">
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+            <p className="text-xs uppercase font-semibold text-slate-500">Capital do dia</p>
+            <p className="text-2xl font-bold text-slate-800">{formatCurrency(dailyCapital)}</p>
+          </div>
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+            <p className="text-xs uppercase font-semibold text-slate-500">Juros do dia</p>
+            <p className="text-2xl font-bold text-slate-800">{formatCurrency(dailyInterest)}</p>
+          </div>
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+            <p className="text-xs uppercase font-semibold text-slate-500">Registros filtrados</p>
+            <p className="text-2xl font-bold text-slate-800">{dailyLoans.length}</p>
+          </div>
+        </div>
       </div>
 
       {detailFilter && (
