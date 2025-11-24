@@ -16,6 +16,11 @@ export interface Client {
   cpf: string;
   phone: string;
   email: string;
+  cep: string;
+  street: string;
+  neighborhood: string;
+  city: string;
+  state: string;
   status: 'active' | 'blocked';
   notes?: string;
   promissoryNote?: PromissoryNote;

@@ -1,12 +1,13 @@
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../../App';
 import { formatCurrency, formatDate } from '../../utils';
-import { LoanStatus, Installment, InstallmentStatus, UserRole } from '../../types';
-import { Plus, Calculator } from 'lucide-react';
+import { LoanStatus, Installment, InstallmentStatus, UserRole, Loan } from '../../types';
+import { Plus, Calculator, Pencil, Trash2 } from 'lucide-react';
 
 export const LoansView: React.FC = () => {
-  const { loans, clients, addLoan, user } = useContext(AppContext);
+  const { loans, clients, addLoan, updateLoan, deleteLoan, user } = useContext(AppContext);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   
   // Form State
   const [selectedClientId, setSelectedClientId] = useState('');
@@ -19,11 +20,20 @@ export const LoansView: React.FC = () => {
   const totalAmount = amount * (1 + interestRate / 100);
   const installmentValue = totalAmount / installmentsCount;
 
+  const resetForm = () => {
+    setSelectedClientId('');
+    setAmount(1000);
+    setInterestRate(20);
+    setInstallmentsCount(4);
+    setStartDate(new Date().toISOString().split('T')[0]);
+    setEditingLoan(null);
+  };
+
   const handleCreateLoan = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedClientId) return;
 
-    const loanId = Math.random().toString(36).substr(2, 9);
+    const loanId = editingLoan?.id || Math.random().toString(36).substr(2, 9);
     
     // Generate Installments
     const generatedInstallments: Installment[] = [];
@@ -45,7 +55,19 @@ export const LoansView: React.FC = () => {
         });
     }
 
-    addLoan({
+    if (editingLoan) {
+      updateLoan({
+        id: loanId,
+        clientId: selectedClientId,
+        amount,
+        interestRate,
+        totalAmount,
+        startDate,
+        installmentsCount,
+        status: editingLoan.status
+      }, generatedInstallments);
+    } else {
+      addLoan({
         id: loanId,
         clientId: selectedClientId,
         amount,
@@ -54,24 +76,40 @@ export const LoansView: React.FC = () => {
         startDate,
         installmentsCount,
         status: LoanStatus.ACTIVE
-    }, generatedInstallments);
+      }, generatedInstallments);
+    }
 
     setIsModalOpen(false);
-    // Reset form defaults
-    setAmount(1000);
+    resetForm();
   };
 
   const getClientName = (id: string) => clients.find(c => c.id === id)?.name || 'Desconhecido';
 
   const canAdd = user?.role === UserRole.ADMIN;
 
+  const handleEditLoan = (loan: Loan) => {
+    setEditingLoan(loan);
+    setSelectedClientId(loan.clientId);
+    setAmount(loan.amount);
+    setInterestRate(loan.interestRate);
+    setInstallmentsCount(loan.installmentsCount);
+    setStartDate(loan.startDate);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteLoan = (loan: Loan) => {
+    if (confirm('Deseja remover este empréstimo e suas parcelas?')) {
+      deleteLoan(loan.id);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-slate-800">Empréstimos</h2>
         {canAdd && (
-          <button 
-            onClick={() => setIsModalOpen(true)}
+          <button
+            onClick={() => { resetForm(); setIsModalOpen(true); }}
             className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-emerald-700 transition shadow-lg shadow-emerald-200"
           >
             <Plus size={18} /> Novo Empréstimo
@@ -89,6 +127,7 @@ export const LoansView: React.FC = () => {
               <th className="p-4">Parcelas</th>
               <th className="p-4">Data</th>
               <th className="p-4">Status</th>
+              {canAdd && <th className="p-4 text-center">Ações</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -101,17 +140,37 @@ export const LoansView: React.FC = () => {
                 <td className="p-4 text-slate-500">{formatDate(loan.startDate)}</td>
                 <td className="p-4">
                   <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                    loan.status === LoanStatus.ACTIVE ? 'bg-blue-100 text-blue-700' : 
+                    loan.status === LoanStatus.ACTIVE ? 'bg-blue-100 text-blue-700' :
                     loan.status === LoanStatus.PAID ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
                   }`}>
                     {loan.status === LoanStatus.ACTIVE ? 'Em Aberto' : 'Finalizado'}
                   </span>
                 </td>
+                {canAdd && (
+                  <td className="p-4 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => handleEditLoan(loan)}
+                        className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
+                        aria-label="Editar empréstimo"
+                      >
+                        <Pencil size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLoan(loan)}
+                        className="p-2 rounded-lg hover:bg-red-50 text-red-500"
+                        aria-label="Excluir empréstimo"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
             {loans.length === 0 && (
                 <tr>
-                    <td colSpan={6} className="p-8 text-center text-slate-400">Nenhum empréstimo cadastrado.</td>
+                    <td colSpan={canAdd ? 7 : 6} className="p-8 text-center text-slate-400">Nenhum empréstimo cadastrado.</td>
                 </tr>
             )}
           </tbody>
@@ -124,7 +183,7 @@ export const LoansView: React.FC = () => {
           <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
             <div className="flex items-center gap-2 mb-6 text-emerald-600">
                 <Calculator />
-                <h3 className="text-xl font-bold text-slate-900">Simular Empréstimo</h3>
+                <h3 className="text-xl font-bold text-slate-900">{editingLoan ? 'Editar Empréstimo' : 'Simular Empréstimo'}</h3>
             </div>
             
             <form onSubmit={handleCreateLoan} className="space-y-4">
@@ -137,9 +196,11 @@ export const LoansView: React.FC = () => {
                     onChange={e => setSelectedClientId(e.target.value)}
                 >
                     <option value="">Selecione um cliente...</option>
-                    {clients.filter(c => c.status === 'active').map(c => (
+                    {clients
+                      .filter(c => c.status === 'active' || c.id === editingLoan?.clientId)
+                      .map(c => (
                         <option key={c.id} value={c.id}>{c.name} - {c.cpf}</option>
-                    ))}
+                      ))}
                 </select>
               </div>
 
@@ -207,8 +268,8 @@ export const LoansView: React.FC = () => {
               </div>
 
               <div className="flex gap-3 mt-6">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 border rounded-xl font-medium hover:bg-slate-50">Cancelar</button>
-                <button type="submit" className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700">Confirmar Empréstimo</button>
+                <button type="button" onClick={() => { setIsModalOpen(false); resetForm(); }} className="flex-1 py-3 border rounded-xl font-medium hover:bg-slate-50">Cancelar</button>
+                <button type="submit" className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700">{editingLoan ? 'Salvar alterações' : 'Confirmar Empréstimo'}</button>
               </div>
             </form>
           </div>
