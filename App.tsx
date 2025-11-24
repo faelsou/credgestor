@@ -29,6 +29,7 @@ const MOCK_CLIENTS: Client[] = [
       issueDate: '2023-09-15',
       dueDate: '2024-09-15',
       indication: 'Garantia',
+      numberHash: 'b7c4d8f2e19a',
       observation: 'Pagamento na conta 001'
     }
   },
@@ -49,7 +50,8 @@ const MOCK_CLIENTS: Client[] = [
       interestRate: 10,
       issueDate: '2023-11-01',
       dueDate: '2024-11-01',
-      indication: 'Sem Garantia'
+      indication: 'Sem Garantia',
+      numberHash: 'e2f1a7c5d903'
     }
   },
   {
@@ -69,7 +71,8 @@ const MOCK_CLIENTS: Client[] = [
       interestRate: 6,
       issueDate: '2023-10-10',
       dueDate: '2024-01-10',
-      indication: 'Garantia'
+      indication: 'Garantia',
+      numberHash: 'c4b1d9e7f805'
     }
   },
 ];

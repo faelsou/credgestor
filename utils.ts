@@ -23,6 +23,17 @@ export const isLate = (dueDate: string) => {
   return due < today;
 };
 
+export const generateNoteHash = () => {
+  if (typeof crypto !== 'undefined' && 'getRandomValues' in crypto) {
+    const randomBytes = crypto.getRandomValues(new Uint8Array(8));
+    return Array.from(randomBytes)
+      .map(byte => byte.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  return `${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 6)}`;
+};
+
 // --- N8N INTEGRATION ---
 // Substitua pela URL do seu Webhook de produção
 const N8N_WEBHOOK_URL = 'https://seu-n8n.com/webhook/cobranca-ia';

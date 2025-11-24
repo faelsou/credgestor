@@ -2,7 +2,7 @@ import React, { useContext, useState } from 'react';
 import { AppContext } from '../../App';
 import { Search, Plus, Phone, Mail, User, FileText, Pencil, Trash2, MapPin, Loader2 } from 'lucide-react';
 import { Client, IndicationType, PromissoryNote, UserRole } from '../../types';
-import { formatCurrency, formatDate } from '../../utils';
+import { formatCurrency, formatDate, generateNoteHash } from '../../utils';
 
 export const ClientsView: React.FC = () => {
   const { clients, addClient, updateClient, deleteClient, user } = useContext(AppContext);
@@ -11,14 +11,20 @@ export const ClientsView: React.FC = () => {
   const [editingClientId, setEditingClientId] = useState<string | null>(null);
   const [cepError, setCepError] = useState('');
   const [isFetchingCep, setIsFetchingCep] = useState(false);
-  const today = new Date().toISOString().split('T')[0];
-  const defaultNote: PromissoryNote = {
-    capital: 0,
-    interestRate: 0,
-    issueDate: today,
-    dueDate: today,
-    indication: 'Sem Garantia'
+
+  const createDefaultPromissoryNote = (): PromissoryNote => {
+    const today = new Date().toISOString().split('T')[0];
+
+    return {
+      capital: 0,
+      interestRate: 0,
+      issueDate: today,
+      dueDate: today,
+      indication: 'Sem Garantia',
+      numberHash: generateNoteHash()
+    };
   };
+
   const [newClient, setNewClient] = useState<Partial<Client> & { promissoryNote: PromissoryNote }>(
     {
       name: '',
@@ -31,7 +37,7 @@ export const ClientsView: React.FC = () => {
       city: '',
       state: '',
       status: 'active',
-      promissoryNote: defaultNote
+      promissoryNote: createDefaultPromissoryNote()
     }
   );
 
@@ -99,7 +105,7 @@ export const ClientsView: React.FC = () => {
       city: '',
       state: '',
       status: 'active',
-      promissoryNote: { ...defaultNote }
+      promissoryNote: createDefaultPromissoryNote()
     });
     setEditingClientId(null);
     setCepError('');
@@ -117,6 +123,13 @@ export const ClientsView: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (newClient.name && newClient.cpf && newClient.promissoryNote) {
+      const promissoryNote = {
+        ...newClient.promissoryNote,
+        capital: Number(newClient.promissoryNote.capital),
+        interestRate: Number(newClient.promissoryNote.interestRate),
+        numberHash: newClient.promissoryNote.numberHash || generateNoteHash()
+      };
+
       const clientToSave: Client = {
         id: editingClientId || Math.random().toString(36).substr(2, 9),
         name: newClient.name,
@@ -129,11 +142,7 @@ export const ClientsView: React.FC = () => {
         city: newClient.city || '',
         state: newClient.state || '',
         status: newClient.status || 'active',
-        promissoryNote: {
-          ...newClient.promissoryNote,
-          capital: Number(newClient.promissoryNote.capital),
-          interestRate: Number(newClient.promissoryNote.interestRate)
-        }
+        promissoryNote
       };
 
       if (editingClientId) {
@@ -152,6 +161,8 @@ export const ClientsView: React.FC = () => {
     if (!client.promissoryNote) return;
 
     const { promissoryNote } = client;
+    const safeClientName = client.name.trim() || 'cliente';
+    const fileName = `${safeClientName}.pdf`;
     const printable = window.open('', '_blank', 'width=700,height=900');
 
     if (!printable) {
@@ -162,7 +173,7 @@ export const ClientsView: React.FC = () => {
     printable.document.write(`
       <html>
         <head>
-          <title>Nota Promissória</title>
+          <title>${fileName}</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 32px; color: #0f172a; }
             h1 { text-align: center; margin-bottom: 24px; }
@@ -174,6 +185,7 @@ export const ClientsView: React.FC = () => {
         </head>
         <body>
           <h1>Nota Promissória</h1>
+          <div class="section"><span class="label">Número:</span> <span class="value">${promissoryNote.numberHash}</span></div>
           <div class="section"><span class="label">Emitente:</span> <span class="value">${client.name}</span></div>
           <div class="section"><span class="label">CPF:</span> <span class="value">${client.cpf}</span></div>
           <div class="section"><span class="label">Contato:</span> <span class="value">${client.phone} / ${client.email || 'sem email'}</span></div>
@@ -190,6 +202,7 @@ export const ClientsView: React.FC = () => {
         </body>
       </html>
     `);
+    printable.document.title = fileName;
     printable.document.close();
     printable.focus();
     printable.print();
@@ -199,9 +212,13 @@ export const ClientsView: React.FC = () => {
 
   const handleEditClient = (client: Client) => {
     setEditingClientId(client.id);
+    const promissoryNote = client.promissoryNote
+      ? { ...client.promissoryNote, numberHash: client.promissoryNote.numberHash || generateNoteHash() }
+      : createDefaultPromissoryNote();
+
     setNewClient({
       ...client,
-      promissoryNote: client.promissoryNote ? { ...client.promissoryNote } : { ...defaultNote }
+      promissoryNote
     });
     setIsModalOpen(true);
   };
@@ -297,6 +314,10 @@ export const ClientsView: React.FC = () => {
               {client.promissoryNote && (
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1 mt-3">
                   <div className="text-[10px] uppercase font-bold text-slate-500">Nota promissória</div>
+                  <div className="flex justify-between text-xs text-slate-600 gap-4">
+                    <span>Número</span>
+                    <span className="font-semibold truncate text-right">{client.promissoryNote.numberHash}</span>
+                  </div>
                   <div className="flex justify-between text-xs text-slate-600">
                     <span>Capital</span>
                     <span className="font-semibold">{formatCurrency(client.promissoryNote.capital)}</span>
@@ -329,7 +350,7 @@ export const ClientsView: React.FC = () => {
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6">
+          <div className="bg-white rounded-2xl w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-4">{editingClientId ? 'Editar Cliente' : 'Cadastrar Cliente'}</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -343,31 +364,33 @@ export const ClientsView: React.FC = () => {
                     onChange={e => setNewClient({...newClient, name: e.target.value})}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">CPF</label>
-                <input
-                    required
-                    type="text"
-                    className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
-                    placeholder="000.000.000-00"
-                    value={newClient.cpf}
-                    onChange={e => setNewClient({...newClient, cpf: formatCPF(e.target.value)})}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">WhatsApp</label>
-                <input
-                    required
-                    type="text"
-                    className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
-                    placeholder="(11) 99999-9999"
-                    value={newClient.phone}
-                    onChange={e => setNewClient({...newClient, phone: formatPhone(e.target.value)})}
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">CPF</label>
+                  <input
+                      required
+                      type="text"
+                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
+                      placeholder="000.000.000-00"
+                      value={newClient.cpf}
+                      onChange={e => setNewClient({...newClient, cpf: formatCPF(e.target.value)})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">WhatsApp</label>
+                  <input
+                      required
+                      type="text"
+                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
+                      placeholder="(11) 99999-9999"
+                      value={newClient.phone}
+                      onChange={e => setNewClient({...newClient, phone: formatPhone(e.target.value)})}
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">CEP</label>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     required
                     type="text"
@@ -410,7 +433,7 @@ export const ClientsView: React.FC = () => {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Cidade</label>
                   <input
@@ -446,7 +469,29 @@ export const ClientsView: React.FC = () => {
               </div>
               <div className="pt-4 border-t border-slate-200 space-y-3">
                 <p className="text-sm font-semibold text-slate-800">Dados da Nota Promissória</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Indicação</label>
+                    <select
+                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
+                      value={newClient.promissoryNote.indication}
+                      onChange={e => handlePromissoryChange('indication', e.target.value as IndicationType)}
+                    >
+                      <option value="Garantia">Garantia</option>
+                      <option value="Sem Garantia">Sem Garantia</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Hash da Nota</label>
+                    <input
+                      readOnly
+                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white"
+                      value={newClient.promissoryNote.numberHash}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Capital (R$)</label>
                     <input
@@ -473,7 +518,7 @@ export const ClientsView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Emissão</label>
                     <input
@@ -497,18 +542,6 @@ export const ClientsView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Indicação</label>
-                  <select
-                    className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
-                    value={newClient.promissoryNote.indication}
-                    onChange={e => handlePromissoryChange('indication', e.target.value as IndicationType)}
-                  >
-                    <option value="Garantia">Garantia</option>
-                    <option value="Sem Garantia">Sem Garantia</option>
-                  </select>
-                </div>
-
-                <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Observações</label>
                   <textarea
                     className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
@@ -519,7 +552,7 @@ export const ClientsView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex gap-3 mt-6">
+              <div className="flex flex-col sm:flex-row gap-3 mt-6">
                 <button type="button" onClick={() => { setIsModalOpen(false); resetForm(); }} className="flex-1 py-2 border rounded-lg hover:bg-slate-50">Cancelar</button>
                 <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Salvar</button>
               </div>
