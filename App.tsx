@@ -6,7 +6,7 @@ import { ClientsView } from './components/dashboard/Clients';
 import { LoansView } from './components/dashboard/Loans';
 import { InstallmentsView } from './components/dashboard/Installments';
 import { UsersView } from './components/dashboard/Users';
-import { User, UserRole, Client, Loan, Installment, LoanStatus, InstallmentStatus } from './types';
+import { User, UserRole, Client, Loan, Installment, LoanStatus, InstallmentStatus, LoanModel } from './types';
 import { isLate } from './utils';
 
 // --- MOCK DATA INITIALIZATION ---
@@ -71,6 +71,7 @@ const MOCK_LOANS: Loan[] = [
     totalAmount: 1100,
     startDate: '2023-10-01',
     installmentsCount: 2,
+    model: LoanModel.SIMPLE_INTEREST,
     status: LoanStatus.ACTIVE,
     promissoryNote: {
       capital: 1000,

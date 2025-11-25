@@ -40,8 +40,17 @@ export interface Loan {
   totalAmount: number; // Valor total com juros
   startDate: string;
   installmentsCount: number;
+  model: LoanModel;
   status: LoanStatus;
   promissoryNote?: PromissoryNote;
+}
+
+export enum LoanModel {
+  FIXED_AMORTIZATION = 'FIXED_AMORTIZATION',
+  SIMPLE_INTEREST = 'SIMPLE_INTEREST',
+  COMPOUND_INTEREST = 'COMPOUND_INTEREST',
+  SAC = 'SAC',
+  PRICE = 'PRICE'
 }
 
 export enum InstallmentStatus {
