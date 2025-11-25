@@ -1,7 +1,7 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useMemo, useState } from 'react';
 import { AppContext } from '../../App';
 import { formatCurrency, formatDate, generateNoteHash } from '../../utils';
-import { LoanStatus, Installment, InstallmentStatus, UserRole, Loan, PromissoryNote, IndicationType, Client } from '../../types';
+import { LoanStatus, Installment, InstallmentStatus, UserRole, Loan, PromissoryNote, IndicationType, Client, LoanModel } from '../../types';
 import { Plus, Calculator, Pencil, Trash2, FileText } from 'lucide-react';
 
 export const LoansView: React.FC = () => {
@@ -15,6 +15,7 @@ export const LoansView: React.FC = () => {
   const [interestRate, setInterestRate] = useState(20); // 20%
   const [installmentsCount, setInstallmentsCount] = useState(4);
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [loanModel, setLoanModel] = useState<LoanModel>(LoanModel.PRICE);
   const createDefaultPromissoryNote = (baseDate: string): PromissoryNote => ({
     capital: amount,
     interestRate: interestRate,
@@ -26,9 +27,96 @@ export const LoansView: React.FC = () => {
   });
   const [promissoryNote, setPromissoryNote] = useState<PromissoryNote>(createDefaultPromissoryNote(startDate));
 
+  const addMonths = (dateString: string, months: number) => {
+    const baseDate = new Date(dateString);
+    const newDate = new Date(baseDate.setMonth(baseDate.getMonth() + months));
+    return newDate.toISOString().split('T')[0];
+  };
+
+  const calculatePriceInstallment = (principal: number, rateDecimal: number, periods: number) => {
+    if (rateDecimal === 0) return principal / periods;
+    const factor = Math.pow(1 + rateDecimal, periods);
+    return principal * ((rateDecimal * factor) / (factor - 1));
+  };
+
+  const schedulePreview = useMemo(() => {
+    const schedule: { number: number; dueDate: string; amount: number }[] = [];
+    const rateDecimal = interestRate / 100;
+    let remainingPrincipal = amount;
+    const amortizationBase = installmentsCount > 0 ? amount / installmentsCount : 0;
+    const priceInstallment = calculatePriceInstallment(amount, rateDecimal, installmentsCount || 1);
+
+    for (let i = 1; i <= installmentsCount; i++) {
+      const dueDate = addMonths(startDate, i);
+      let installmentAmount = amortizationBase;
+
+      switch (loanModel) {
+        case LoanModel.FIXED_AMORTIZATION:
+          installmentAmount = amortizationBase;
+          remainingPrincipal -= amortizationBase;
+          break;
+        case LoanModel.SIMPLE_INTEREST: {
+          const interestPortion = amount * rateDecimal;
+          installmentAmount = amortizationBase + interestPortion;
+          remainingPrincipal -= amortizationBase;
+          break;
+        }
+        case LoanModel.COMPOUND_INTEREST: {
+          const interestPortion = remainingPrincipal * rateDecimal;
+          installmentAmount = amortizationBase + interestPortion;
+          remainingPrincipal = remainingPrincipal + interestPortion - amortizationBase;
+          break;
+        }
+        case LoanModel.SAC: {
+          const interestPortion = remainingPrincipal * rateDecimal;
+          installmentAmount = amortizationBase + interestPortion;
+          remainingPrincipal -= amortizationBase;
+          break;
+        }
+        case LoanModel.PRICE: {
+          const interestPortion = remainingPrincipal * rateDecimal;
+          const amortization = priceInstallment - interestPortion;
+          installmentAmount = priceInstallment;
+          remainingPrincipal -= amortization;
+          break;
+        }
+        default:
+          break;
+      }
+
+      schedule.push({
+        number: i,
+        dueDate,
+        amount: Number(installmentAmount.toFixed(2))
+      });
+    }
+
+    return schedule;
+  }, [amount, interestRate, installmentsCount, startDate, loanModel]);
+
   // Derived calculations
-  const totalAmount = amount * (1 + interestRate / 100);
-  const installmentValue = totalAmount / installmentsCount;
+  const totalAmount = useMemo(
+    () => schedulePreview.reduce((sum, inst) => sum + inst.amount, 0),
+    [schedulePreview]
+  );
+  const averageInstallment = installmentsCount > 0 ? totalAmount / installmentsCount : 0;
+
+  const loanModelLabel = (model: LoanModel) => {
+    switch (model) {
+      case LoanModel.FIXED_AMORTIZATION:
+        return 'Amortização Fixa';
+      case LoanModel.SIMPLE_INTEREST:
+        return 'Juros Simples';
+      case LoanModel.COMPOUND_INTEREST:
+        return 'Juros Compostos';
+      case LoanModel.SAC:
+        return 'SAC';
+      case LoanModel.PRICE:
+        return 'Price';
+      default:
+        return model;
+    }
+  };
 
   const handlePromissoryChange = (field: keyof PromissoryNote, value: string | number | IndicationType) => {
     setPromissoryNote(prev => ({ ...prev, [field]: value }));
@@ -39,6 +127,7 @@ export const LoansView: React.FC = () => {
     setAmount(1000);
     setInterestRate(20);
     setInstallmentsCount(4);
+    setLoanModel(LoanModel.PRICE);
     const today = new Date().toISOString().split('T')[0];
     setStartDate(today);
     setPromissoryNote(createDefaultPromissoryNote(today));
@@ -51,25 +140,16 @@ export const LoansView: React.FC = () => {
 
     const loanId = editingLoan?.id || Math.random().toString(36).substr(2, 9);
     
-    // Generate Installments
-    const generatedInstallments: Installment[] = [];
-    let currentDate = new Date(startDate);
-
-    for (let i = 1; i <= installmentsCount; i++) {
-        // Add 1 month for next installment (Simplified logic)
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        
-        generatedInstallments.push({
-            id: `inst_${loanId}_${i}`,
-            loanId: loanId,
-            clientId: selectedClientId,
-            number: i,
-            dueDate: currentDate.toISOString().split('T')[0],
-            amount: parseFloat(installmentValue.toFixed(2)),
-            amountPaid: 0,
-            status: InstallmentStatus.PENDING
-        });
-    }
+    const generatedInstallments: Installment[] = schedulePreview.map(scheduleItem => ({
+      id: `inst_${loanId}_${scheduleItem.number}`,
+      loanId: loanId,
+      clientId: selectedClientId,
+      number: scheduleItem.number,
+      dueDate: scheduleItem.dueDate,
+      amount: scheduleItem.amount,
+      amountPaid: 0,
+      status: InstallmentStatus.PENDING
+    }));
 
     const lastDueDate = generatedInstallments[generatedInstallments.length - 1]?.dueDate || startDate;
     const promissoryToSave: PromissoryNote = {
@@ -86,9 +166,10 @@ export const LoansView: React.FC = () => {
       clientId: selectedClientId,
       amount,
       interestRate,
-      totalAmount,
+      totalAmount: Number(totalAmount.toFixed(2)),
       startDate,
       installmentsCount,
+      model: loanModel,
       status: editingLoan ? editingLoan.status : LoanStatus.ACTIVE,
       promissoryNote: promissoryToSave
     };
@@ -120,6 +201,7 @@ export const LoansView: React.FC = () => {
     setInstallmentsCount(loan.installmentsCount);
     setStartDate(loan.startDate);
     setPromissoryNote(loan.promissoryNote || createDefaultPromissoryNote(loan.startDate));
+    setLoanModel(loan.model || LoanModel.PRICE);
     setIsModalOpen(true);
   };
 
@@ -187,6 +269,7 @@ export const LoansView: React.FC = () => {
           <div class="card">
             <div class="section"><span class="label">Empréstimo:</span> <span class="value">${formatCurrency(loan.amount)} liberado em ${formatDate(loan.startDate)}</span></div>
             <div class="section"><span class="label">Total com juros:</span> <span class="value">${formatCurrency(loan.totalAmount)}</span></div>
+            <div class="section"><span class="label">Modelo:</span> <span class="value">${loanModelLabel(loan.model)}</span></div>
             <div class="section"><span class="label">Parcelas:</span> <span class="value">${loan.installmentsCount}x de ${formatCurrency(loan.totalAmount / loan.installmentsCount)}</span></div>
             <div class="section schedule">
               <div class="label">Agenda de pagamento</div>
@@ -242,6 +325,7 @@ export const LoansView: React.FC = () => {
               <th className="p-4">Cliente</th>
               <th className="p-4">Valor Principal</th>
               <th className="p-4">Total (+Juros)</th>
+              <th className="p-4">Modelo</th>
               <th className="p-4">Parcelas</th>
               <th className="p-4">Data</th>
               <th className="p-4">Status</th>
@@ -259,6 +343,7 @@ export const LoansView: React.FC = () => {
                 <td className="p-4 font-medium text-slate-800">{clientName}</td>
                 <td className="p-4">{formatCurrency(loan.amount)}</td>
                 <td className="p-4 font-semibold text-emerald-600">{formatCurrency(loan.totalAmount)}</td>
+                <td className="p-4 text-slate-600">{loanModelLabel(loan.model)}</td>
                 <td className="p-4">{loan.installmentsCount}x</td>
                 <td className="p-4 text-slate-500">{formatDate(loan.startDate)}</td>
                 <td className="p-4">
@@ -310,7 +395,7 @@ export const LoansView: React.FC = () => {
             })}
             {loans.length === 0 && (
                 <tr>
-                    <td colSpan={canAdd ? 7 : 6} className="p-8 text-center text-slate-400">Nenhum empréstimo cadastrado.</td>
+                    <td colSpan={canAdd ? 8 : 7} className="p-8 text-center text-slate-400">Nenhum empréstimo cadastrado.</td>
                 </tr>
             )}
           </tbody>
@@ -375,11 +460,26 @@ export const LoansView: React.FC = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Modelo de Empréstimo</label>
+                <select
+                  className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white transition-colors"
+                  value={loanModel}
+                  onChange={e => setLoanModel(e.target.value as LoanModel)}
+                >
+                  <option value={LoanModel.FIXED_AMORTIZATION}>Amortização Fixa</option>
+                  <option value={LoanModel.SIMPLE_INTEREST}>Juros Simples</option>
+                  <option value={LoanModel.COMPOUND_INTEREST}>Juros Compostos</option>
+                  <option value={LoanModel.SAC}>SAC</option>
+                  <option value={LoanModel.PRICE}>Price</option>
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Parcelas</label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       min="1" 
                       max="48" 
                       className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white transition-colors" 
@@ -413,9 +513,13 @@ export const LoansView: React.FC = () => {
                     <span className="text-slate-500">Total a receber:</span>
                     <span className="font-bold text-emerald-600">{formatCurrency(totalAmount)}</span>
                 </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Modelo</span>
+                  <span className="font-medium text-slate-800">{loanModelLabel(loanModel)}</span>
+                </div>
                 <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
                     <span className="text-sm font-bold text-slate-700">Parcelas:</span>
-                    <span className="text-lg font-bold text-slate-900">{installmentsCount}x de {formatCurrency(installmentValue)}</span>
+                    <span className="text-lg font-bold text-slate-900">{installmentsCount}x de {formatCurrency(averageInstallment)}</span>
                 </div>
               </div>
 
