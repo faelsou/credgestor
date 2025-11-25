@@ -23,16 +23,7 @@ const MOCK_CLIENTS: Client[] = [
     neighborhood: 'Sé',
     city: 'São Paulo',
     state: 'SP',
-    status: 'active',
-    promissoryNote: {
-      capital: 1500,
-      interestRate: 8,
-      issueDate: '2023-09-15',
-      dueDate: '2024-09-15',
-      indication: 'Garantia',
-      numberHash: 'b7c4d8f2e19a',
-      observation: 'Pagamento na conta 001'
-    }
+    status: 'active'
   },
   {
     id: '2',
@@ -46,15 +37,7 @@ const MOCK_CLIENTS: Client[] = [
     neighborhood: 'Centro',
     city: 'Rio de Janeiro',
     state: 'RJ',
-    status: 'active',
-    promissoryNote: {
-      capital: 2200,
-      interestRate: 10,
-      issueDate: '2023-11-01',
-      dueDate: '2024-11-01',
-      indication: 'Sem Garantia',
-      numberHash: 'e2f1a7c5d903'
-    }
+    status: 'active'
   },
   {
     id: '3',
@@ -68,15 +51,7 @@ const MOCK_CLIENTS: Client[] = [
     neighborhood: 'Centro',
     city: 'Belo Horizonte',
     state: 'MG',
-    status: 'blocked',
-    promissoryNote: {
-      capital: 500,
-      interestRate: 6,
-      issueDate: '2023-10-10',
-      dueDate: '2024-01-10',
-      indication: 'Garantia',
-      numberHash: 'c4b1d9e7f805'
-    }
+    status: 'blocked'
   },
 ];
 
@@ -88,7 +63,25 @@ const MOCK_USERS: User[] = [
 const TODAY = new Date().toISOString().split('T')[0];
 
 const MOCK_LOANS: Loan[] = [
-  { id: 'l1', clientId: '1', amount: 1000, interestRate: 10, totalAmount: 1100, startDate: '2023-10-01', installmentsCount: 2, status: LoanStatus.ACTIVE },
+  {
+    id: 'l1',
+    clientId: '1',
+    amount: 1000,
+    interestRate: 10,
+    totalAmount: 1100,
+    startDate: '2023-10-01',
+    installmentsCount: 2,
+    status: LoanStatus.ACTIVE,
+    promissoryNote: {
+      capital: 1000,
+      interestRate: 10,
+      issueDate: '2023-10-01',
+      dueDate: '2024-10-01',
+      indication: 'Garantia',
+      numberHash: 'b7c4d8f2e19a',
+      observation: 'Pagamento na conta 001'
+    }
+  },
 ];
 
 const MOCK_INSTALLMENTS: Installment[] = [

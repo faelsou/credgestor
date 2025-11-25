@@ -1,8 +1,7 @@
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../../App';
-import { Search, Plus, Phone, Mail, User, FileText, Pencil, Trash2, MapPin, Loader2 } from 'lucide-react';
-import { Client, IndicationType, Loan, PromissoryNote, UserRole } from '../../types';
-import { formatCurrency, formatDate, generateNoteHash } from '../../utils';
+import { Search, Plus, Phone, Mail, User, Pencil, Trash2, MapPin, Loader2 } from 'lucide-react';
+import { Client, UserRole } from '../../types';
 
 export const ClientsView: React.FC = () => {
   const { clients, addClient, updateClient, deleteClient, user, loans } = useContext(AppContext);
@@ -12,35 +11,19 @@ export const ClientsView: React.FC = () => {
   const [cepError, setCepError] = useState('');
   const [isFetchingCep, setIsFetchingCep] = useState(false);
 
-  const createDefaultPromissoryNote = (): PromissoryNote => {
-    const today = new Date().toISOString().split('T')[0];
-
-    return {
-      capital: 0,
-      interestRate: 0,
-      issueDate: today,
-      dueDate: today,
-      indication: 'Sem Garantia',
-      numberHash: generateNoteHash()
-    };
-  };
-
-  const [newClient, setNewClient] = useState<Partial<Client> & { promissoryNote: PromissoryNote }>(
-    {
-      name: '',
-      cpf: '',
-      phone: '',
-      email: '',
-      cep: '',
-      street: '',
-      complement: '',
-      neighborhood: '',
-      city: '',
-      state: '',
-      status: 'active',
-      promissoryNote: createDefaultPromissoryNote()
-    }
-  );
+  const [newClient, setNewClient] = useState<Partial<Client>>({
+    name: '',
+    cpf: '',
+    phone: '',
+    email: '',
+    cep: '',
+    street: '',
+    complement: '',
+    neighborhood: '',
+    city: '',
+    state: '',
+    status: 'active'
+  });
 
   const formatOnlyDigits = (value: string, maxLength: number) => value.replace(/\D/g, '').slice(0, maxLength);
 
@@ -106,32 +89,20 @@ export const ClientsView: React.FC = () => {
       neighborhood: '',
       city: '',
       state: '',
-      status: 'active',
-      promissoryNote: createDefaultPromissoryNote()
+      status: 'active'
     });
     setEditingClientId(null);
     setCepError('');
   };
 
-  const handlePromissoryChange = (field: keyof PromissoryNote, value: string | number | IndicationType) => {
-    setNewClient(prev => ({ ...prev, promissoryNote: { ...prev.promissoryNote, [field]: value } }));
-  };
-
-  const filteredClients = clients.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredClients = clients.filter(c =>
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.cpf.includes(searchTerm)
   );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newClient.name && newClient.cpf && newClient.promissoryNote) {
-      const promissoryNote = {
-        ...newClient.promissoryNote,
-        capital: Number(newClient.promissoryNote.capital),
-        interestRate: Number(newClient.promissoryNote.interestRate),
-        numberHash: newClient.promissoryNote.numberHash || generateNoteHash()
-      };
-
+    if (newClient.name && newClient.cpf) {
       const clientToSave: Client = {
         id: editingClientId || Math.random().toString(36).substr(2, 9),
         name: newClient.name,
@@ -144,15 +115,13 @@ export const ClientsView: React.FC = () => {
         neighborhood: newClient.neighborhood || '',
         city: newClient.city || '',
         state: newClient.state || '',
-        status: newClient.status || 'active',
-        promissoryNote
+        status: newClient.status || 'active'
       };
 
       if (editingClientId) {
         updateClient(clientToSave);
       } else {
         addClient(clientToSave);
-        generatePromissoryNotePDF(clientToSave, []);
       }
 
       setIsModalOpen(false);
@@ -160,91 +129,12 @@ export const ClientsView: React.FC = () => {
     }
   };
 
-  const describeLoanStatus = (status: Loan['status']) => {
-    switch (status) {
-      case 'ACTIVE':
-        return 'Em andamento';
-      case 'PAID':
-        return 'Quitado';
-      default:
-        return 'Inadimplente';
-    }
-  };
-
-  const generatePromissoryNotePDF = (client: Client, clientLoans: Loan[]) => {
-    if (!client.promissoryNote) return;
-
-    const { promissoryNote } = client;
-    const safeClientName = client.name.trim() || 'cliente';
-    const fileName = `${safeClientName}.pdf`;
-    const printable = window.open('', '_blank', 'width=700,height=900');
-
-    if (!printable) {
-      alert('Não foi possível abrir o gerador de PDF. Verifique o bloqueio de pop-ups.');
-      return;
-    }
-
-    printable.document.write(`
-      <html>
-        <head>
-          <title>${fileName}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 32px; color: #0f172a; }
-            h1 { text-align: center; margin-bottom: 24px; }
-            .section { margin-bottom: 12px; }
-            .label { font-weight: bold; text-transform: uppercase; font-size: 12px; color: #334155; }
-            .value { font-size: 14px; }
-            .signature { margin-top: 48px; border-top: 1px solid #94a3b8; padding-top: 12px; }
-          </style>
-        </head>
-        <body>
-          <h1>Nota Promissória</h1>
-          <div class="section"><span class="label">Número:</span> <span class="value">${promissoryNote.numberHash}</span></div>
-          <div class="section"><span class="label">Emitente:</span> <span class="value">${client.name}</span></div>
-          <div class="section"><span class="label">CPF:</span> <span class="value">${client.cpf}</span></div>
-          <div class="section"><span class="label">Contato:</span> <span class="value">${client.phone} / ${client.email || 'sem email'}</span></div>
-          <div class="section"><span class="label">Endereço:</span> <span class="value">${client.street}${client.complement ? ', ' + client.complement : ''} - ${client.neighborhood}, ${client.city}/${client.state} - CEP ${client.cep}</span></div>
-          <div class="section"><span class="label">Capital:</span> <span class="value">${formatCurrency(promissoryNote.capital)}</span></div>
-          <div class="section"><span class="label">Juros:</span> <span class="value">${promissoryNote.interestRate}%</span></div>
-          <div class="section"><span class="label">Emissão:</span> <span class="value">${formatDate(promissoryNote.issueDate)}</span></div>
-          <div class="section"><span class="label">Vencimento:</span> <span class="value">${formatDate(promissoryNote.dueDate)}</span></div>
-          <div class="section"><span class="label">Indicação:</span> <span class="value">${promissoryNote.indication}</span></div>
-          ${promissoryNote.observation ? `<div class="section"><span class="label">Observação:</span> <span class="value">${promissoryNote.observation}</span></div>` : ''}
-          <div class="section">
-            <span class="label">Empréstimos registrados:</span>
-            ${clientLoans.length === 0
-              ? '<div class="value">Nenhum empréstimo ativo para este cliente.</div>'
-              : `<ul style="margin-top:8px; padding-left:16px;">${clientLoans.map(loan => `
-                  <li style="margin-bottom:6px;">
-                    <div class="value"><strong>Valor:</strong> ${formatCurrency(loan.amount)} | <strong>Total c/ juros:</strong> ${formatCurrency(loan.totalAmount)}</div>
-                    <div class="value"><strong>Parcelas:</strong> ${loan.installmentsCount}x | <strong>Início:</strong> ${formatDate(loan.startDate)}</div>
-                    <div class="value"><strong>Status:</strong> ${describeLoanStatus(loan.status)}</div>
-                  </li>`).join('')}</ul>`}
-          </div>
-          <div class="signature">
-            <p>Assinatura Digital: _____________________________________</p>
-            <p style="font-size: 12px; color: #334155;">Confirmação para assinatura eletrônica.</p>
-          </div>
-        </body>
-      </html>
-    `);
-    printable.document.title = fileName;
-    printable.document.close();
-    printable.focus();
-    printable.print();
-  };
-
   const canEdit = user?.role === UserRole.ADMIN;
 
   const handleEditClient = (client: Client) => {
     setEditingClientId(client.id);
-    const promissoryNote = client.promissoryNote
-      ? { ...client.promissoryNote, numberHash: client.promissoryNote.numberHash || generateNoteHash() }
-      : createDefaultPromissoryNote();
-
     setNewClient({
-      ...client,
-      promissoryNote
+      ...client
     });
     setIsModalOpen(true);
   };
@@ -337,40 +227,6 @@ export const ClientsView: React.FC = () => {
                   <div className="text-xs text-slate-500">{client.city}/{client.state} - CEP {client.cep}</div>
                 </div>
               </div>
-              {client.promissoryNote && (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1 mt-3">
-                  <div className="text-[10px] uppercase font-bold text-slate-500">Nota promissória</div>
-                  <div className="flex justify-between text-xs text-slate-600 gap-4">
-                    <span>Número</span>
-                    <span className="font-semibold truncate text-right">{client.promissoryNote.numberHash}</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-slate-600">
-                    <span>Capital</span>
-                    <span className="font-semibold">{formatCurrency(client.promissoryNote.capital)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-slate-600">
-                    <span>Juros</span>
-                    <span className="font-semibold">{client.promissoryNote.interestRate}%</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-slate-600">
-                    <span>Vencimento</span>
-                    <span className="font-semibold">{formatDate(client.promissoryNote.dueDate)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-slate-600">
-                    <span>Indicação</span>
-                    <span className="font-semibold">{client.promissoryNote.indication}</span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const clientLoans = loans.filter(loan => loan.clientId === client.id);
-                      generatePromissoryNotePDF(client, clientLoans);
-                    }}
-                    className="w-full mt-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-emerald-100 transition"
-                  >
-                    <FileText size={14} /> Gerar PDF para assinatura
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         ))}
@@ -506,91 +362,6 @@ export const ClientsView: React.FC = () => {
                     onChange={e => setNewClient({...newClient, email: e.target.value})} 
                 />
               </div>
-              <div className="pt-4 border-t border-slate-200 space-y-3">
-                <p className="text-sm font-semibold text-slate-800">Dados da Nota Promissória</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Indicação</label>
-                    <select
-                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
-                      value={newClient.promissoryNote.indication}
-                      onChange={e => handlePromissoryChange('indication', e.target.value as IndicationType)}
-                    >
-                      <option value="Garantia">Garantia</option>
-                      <option value="Sem Garantia">Sem Garantia</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Hash da Nota</label>
-                    <input
-                      readOnly
-                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white"
-                      value={newClient.promissoryNote.numberHash}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Capital (R$)</label>
-                    <input
-                      required
-                      type="number"
-                      min="0"
-                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
-                      placeholder="Valor principal"
-                      value={newClient.promissoryNote.capital}
-                      onChange={e => handlePromissoryChange('capital', parseFloat(e.target.value))}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Juros (%)</label>
-                    <input
-                      required
-                      type="number"
-                      min="0"
-                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
-                      placeholder="Ex: 8"
-                      value={newClient.promissoryNote.interestRate}
-                      onChange={e => handlePromissoryChange('interestRate', parseFloat(e.target.value))}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Emissão</label>
-                    <input
-                      required
-                      type="date"
-                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
-                      value={newClient.promissoryNote.issueDate}
-                      onChange={e => handlePromissoryChange('issueDate', e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Vencimento</label>
-                    <input
-                      required
-                      type="date"
-                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
-                      value={newClient.promissoryNote.dueDate}
-                      onChange={e => handlePromissoryChange('dueDate', e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Observações</label>
-                  <textarea
-                    className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
-                    placeholder="Instruções adicionais para a assinatura digital"
-                    value={newClient.promissoryNote.observation || ''}
-                    onChange={e => handlePromissoryChange('observation', e.target.value)}
-                  />
-                </div>
-              </div>
-
               <div className="flex flex-col sm:flex-row gap-3 mt-6">
                 <button type="button" onClick={() => { setIsModalOpen(false); resetForm(); }} className="flex-1 py-2 border rounded-lg hover:bg-slate-50">Cancelar</button>
                 <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Salvar</button>

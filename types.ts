@@ -24,7 +24,6 @@ export interface Client {
   state: string;
   status: 'active' | 'blocked';
   notes?: string;
-  promissoryNote?: PromissoryNote;
 }
 
 export enum LoanStatus {
@@ -42,6 +41,7 @@ export interface Loan {
   startDate: string;
   installmentsCount: number;
   status: LoanStatus;
+  promissoryNote?: PromissoryNote;
 }
 
 export enum InstallmentStatus {

@@ -9,7 +9,10 @@ export const DashboardHome: React.FC = () => {
   const { clients, installments, loans, user } = useContext(AppContext);
   const [sendingReport, setSendingReport] = useState(false);
   const [detailFilter, setDetailFilter] = useState<'PAID' | 'RECEIVABLE' | 'LATE' | null>(null);
-  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const today = new Date().toISOString().split('T')[0];
+  const [reportStartDate, setReportStartDate] = useState(today);
+  const [reportEndDate, setReportEndDate] = useState(today);
+  const [rangeDetail, setRangeDetail] = useState<'capital' | 'interest' | null>(null);
 
   const stats = useMemo(() => {
     const totalReceived = installments
@@ -55,12 +58,30 @@ export const DashboardHome: React.FC = () => {
 
   const detailTotal = detailedInstallments.reduce((acc, inst) => acc + (inst.amountPaid || inst.amount), 0);
 
-  const dailyLoans = useMemo(() => loans.filter(loan => loan.startDate === reportDate), [loans, reportDate]);
-  const dailyCapital = dailyLoans.reduce((acc, loan) => acc + loan.amount, 0);
-  const dailyInterest = dailyLoans.reduce((acc, loan) => acc + (loan.totalAmount - loan.amount), 0);
+  const filteredLoans = useMemo(() => {
+    const start = new Date(reportStartDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(reportEndDate);
+    end.setHours(23, 59, 59, 999);
+
+    return loans.filter(loan => {
+      const loanDate = new Date(loan.startDate);
+      return loanDate >= start && loanDate <= end;
+    });
+  }, [loans, reportEndDate, reportStartDate]);
+
+  const sortedRangeLoans = useMemo(
+    () => [...filteredLoans].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()),
+    [filteredLoans]
+  );
+
+  const dailyCapital = sortedRangeLoans.reduce((acc, loan) => acc + loan.amount, 0);
+  const dailyInterest = sortedRangeLoans.reduce((acc, loan) => acc + (loan.totalAmount - loan.amount), 0);
+  const rangeDetailTitle = rangeDetail === 'capital' ? 'Capital por cliente' : 'Juros por cliente';
+  const rangeDetailTotal = rangeDetail === 'capital' ? dailyCapital : dailyInterest;
 
   const exportExcelReport = () => {
-    const data = (reportDate ? loans.filter(loan => loan.startDate === reportDate) : loans).map(loan => {
+    const data = (filteredLoans.length ? filteredLoans : loans).map(loan => {
       const client = clients.find(c => c.id === loan.clientId);
       const interest = loan.totalAmount - loan.amount;
       return {
@@ -83,7 +104,7 @@ export const DashboardHome: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `relatorio_financeiro_${reportDate}.csv`;
+    link.download = `relatorio_financeiro_${reportStartDate}_a_${reportEndDate}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -177,19 +198,28 @@ export const DashboardHome: React.FC = () => {
           <div className="flex items-center gap-2 text-slate-700">
             <Filter size={16} />
             <div>
-              <p className="text-xs uppercase font-semibold text-slate-500">Filtros do dia</p>
+              <p className="text-xs uppercase font-semibold text-slate-500">Filtros do período</p>
               <h3 className="text-lg font-bold text-slate-800">Capital e juros</h3>
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
             <div className="flex items-center gap-2">
               <Calendar size={16} className="text-slate-500" />
-              <input
-                type="date"
-                value={reportDate}
-                onChange={e => setReportDate(e.target.value)}
-                className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={reportStartDate}
+                  onChange={e => setReportStartDate(e.target.value)}
+                  className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                />
+                <span className="text-slate-500">até</span>
+                <input
+                  type="date"
+                  value={reportEndDate}
+                  onChange={e => setReportEndDate(e.target.value)}
+                  className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
             </div>
             <button
               onClick={exportExcelReport}
@@ -200,20 +230,69 @@ export const DashboardHome: React.FC = () => {
           </div>
         </div>
         <div className="grid sm:grid-cols-3 gap-4">
-          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-            <p className="text-xs uppercase font-semibold text-slate-500">Capital do dia</p>
+          <button
+            type="button"
+            onClick={() => setRangeDetail('capital')}
+            className={`text-left p-4 rounded-xl border ${rangeDetail === 'capital' ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'} hover:border-emerald-300 transition`}
+          >
+            <p className="text-xs uppercase font-semibold text-slate-500">Capital do período</p>
             <p className="text-2xl font-bold text-slate-800">{formatCurrency(dailyCapital)}</p>
-          </div>
-          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-            <p className="text-xs uppercase font-semibold text-slate-500">Juros do dia</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setRangeDetail('interest')}
+            className={`text-left p-4 rounded-xl border ${rangeDetail === 'interest' ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'} hover:border-emerald-300 transition`}
+          >
+            <p className="text-xs uppercase font-semibold text-slate-500">Juros do período</p>
             <p className="text-2xl font-bold text-slate-800">{formatCurrency(dailyInterest)}</p>
-          </div>
+          </button>
           <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
             <p className="text-xs uppercase font-semibold text-slate-500">Registros filtrados</p>
-            <p className="text-2xl font-bold text-slate-800">{dailyLoans.length}</p>
+            <p className="text-2xl font-bold text-slate-800">{sortedRangeLoans.length}</p>
           </div>
         </div>
       </div>
+
+      {rangeDetail && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase font-semibold text-slate-500">{rangeDetailTitle}</p>
+              <h3 className="text-2xl font-bold text-slate-800">{formatCurrency(rangeDetailTotal)}</h3>
+              <p className="text-sm text-slate-500">{sortedRangeLoans.length} empréstimos encontrados</p>
+            </div>
+            <button
+              onClick={() => setRangeDetail(null)}
+              className="self-start md:self-auto px-3 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-200 flex items-center gap-2"
+            >
+              <X size={16} /> Fechar filtro
+            </button>
+          </div>
+
+          {sortedRangeLoans.length === 0 && (
+            <p className="text-sm text-slate-500">Nenhum empréstimo no período selecionado.</p>
+          )}
+
+          <div className="divide-y divide-slate-100">
+            {sortedRangeLoans.map(loan => {
+              const client = clients.find(c => c.id === loan.clientId);
+              const interest = loan.totalAmount - loan.amount;
+              return (
+                <div key={loan.id} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-slate-800">{client?.name || 'Cliente desconhecido'}</p>
+                    <p className="text-sm text-slate-500">Data: {formatDate(loan.startDate)} • CPF: {client?.cpf || '---'}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-slate-500">{rangeDetail === 'capital' ? 'Capital liberado' : 'Juros previstos'}</p>
+                    <p className="text-lg font-bold text-slate-800">{formatCurrency(rangeDetail === 'capital' ? loan.amount : interest)}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {detailFilter && (
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">

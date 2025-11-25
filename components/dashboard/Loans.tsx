@@ -1,11 +1,11 @@
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../../App';
-import { formatCurrency, formatDate } from '../../utils';
-import { LoanStatus, Installment, InstallmentStatus, UserRole, Loan } from '../../types';
-import { Plus, Calculator, Pencil, Trash2 } from 'lucide-react';
+import { formatCurrency, formatDate, generateNoteHash } from '../../utils';
+import { LoanStatus, Installment, InstallmentStatus, UserRole, Loan, PromissoryNote, IndicationType, Client } from '../../types';
+import { Plus, Calculator, Pencil, Trash2, FileText } from 'lucide-react';
 
 export const LoansView: React.FC = () => {
-  const { loans, clients, addLoan, updateLoan, deleteLoan, user } = useContext(AppContext);
+  const { loans, clients, installments, addLoan, updateLoan, deleteLoan, user } = useContext(AppContext);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   
@@ -15,17 +15,33 @@ export const LoansView: React.FC = () => {
   const [interestRate, setInterestRate] = useState(20); // 20%
   const [installmentsCount, setInstallmentsCount] = useState(4);
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const createDefaultPromissoryNote = (baseDate: string): PromissoryNote => ({
+    capital: amount,
+    interestRate: interestRate,
+    issueDate: baseDate,
+    dueDate: baseDate,
+    indication: 'Sem Garantia',
+    numberHash: generateNoteHash(),
+    observation: ''
+  });
+  const [promissoryNote, setPromissoryNote] = useState<PromissoryNote>(createDefaultPromissoryNote(startDate));
 
   // Derived calculations
   const totalAmount = amount * (1 + interestRate / 100);
   const installmentValue = totalAmount / installmentsCount;
+
+  const handlePromissoryChange = (field: keyof PromissoryNote, value: string | number | IndicationType) => {
+    setPromissoryNote(prev => ({ ...prev, [field]: value }));
+  };
 
   const resetForm = () => {
     setSelectedClientId('');
     setAmount(1000);
     setInterestRate(20);
     setInstallmentsCount(4);
-    setStartDate(new Date().toISOString().split('T')[0]);
+    const today = new Date().toISOString().split('T')[0];
+    setStartDate(today);
+    setPromissoryNote(createDefaultPromissoryNote(today));
     setEditingLoan(null);
   };
 
@@ -55,28 +71,37 @@ export const LoansView: React.FC = () => {
         });
     }
 
+    const lastDueDate = generatedInstallments[generatedInstallments.length - 1]?.dueDate || startDate;
+    const promissoryToSave: PromissoryNote = {
+      ...promissoryNote,
+      capital: Number(promissoryNote.capital || amount),
+      interestRate: Number(promissoryNote.interestRate || interestRate),
+      issueDate: promissoryNote.issueDate || startDate,
+      dueDate: promissoryNote.dueDate || lastDueDate,
+      numberHash: promissoryNote.numberHash || generateNoteHash()
+    };
+
+    const loanToPersist: Loan = {
+      id: loanId,
+      clientId: selectedClientId,
+      amount,
+      interestRate,
+      totalAmount,
+      startDate,
+      installmentsCount,
+      status: editingLoan ? editingLoan.status : LoanStatus.ACTIVE,
+      promissoryNote: promissoryToSave
+    };
+
     if (editingLoan) {
-      updateLoan({
-        id: loanId,
-        clientId: selectedClientId,
-        amount,
-        interestRate,
-        totalAmount,
-        startDate,
-        installmentsCount,
-        status: editingLoan.status
-      }, generatedInstallments);
+      updateLoan(loanToPersist, generatedInstallments);
     } else {
-      addLoan({
-        id: loanId,
-        clientId: selectedClientId,
-        amount,
-        interestRate,
-        totalAmount,
-        startDate,
-        installmentsCount,
-        status: LoanStatus.ACTIVE
-      }, generatedInstallments);
+      addLoan(loanToPersist, generatedInstallments);
+    }
+
+    const client = clients.find(c => c.id === selectedClientId);
+    if (client) {
+      generatePromissoryNotePDF(client.name, client, loanToPersist, generatedInstallments);
     }
 
     setIsModalOpen(false);
@@ -94,6 +119,7 @@ export const LoansView: React.FC = () => {
     setInterestRate(loan.interestRate);
     setInstallmentsCount(loan.installmentsCount);
     setStartDate(loan.startDate);
+    setPromissoryNote(loan.promissoryNote || createDefaultPromissoryNote(loan.startDate));
     setIsModalOpen(true);
   };
 
@@ -101,6 +127,68 @@ export const LoansView: React.FC = () => {
     if (confirm('Deseja remover este empréstimo e suas parcelas?')) {
       deleteLoan(loan.id);
     }
+  };
+
+  const generatePromissoryNotePDF = (safeClientName: string, client: Client, loan: Loan, schedule: Installment[]) => {
+    if (!loan.promissoryNote) return;
+
+    const printable = window.open('', '_blank', 'width=800,height=900');
+    const fileName = `${safeClientName || 'cliente'}.pdf`;
+
+    if (!printable) {
+      alert('Não foi possível abrir o gerador de PDF. Verifique o bloqueio de pop-ups.');
+      return;
+    }
+
+    const { promissoryNote } = loan;
+
+    printable.document.write(`
+      <html>
+        <head>
+          <title>${fileName}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 32px; color: #0f172a; }
+            h1 { text-align: center; margin-bottom: 24px; }
+            .section { margin-bottom: 10px; }
+            .label { font-weight: bold; text-transform: uppercase; font-size: 12px; color: #334155; }
+            .value { font-size: 14px; }
+            .card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-top: 12px; }
+            .schedule { margin-top: 8px; }
+            .schedule-row { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; border-bottom: 1px solid #e2e8f0; }
+            .schedule-row:last-child { border-bottom: none; }
+          </style>
+        </head>
+        <body>
+          <h1>Nota Promissória</h1>
+          <div class="section"><span class="label">Número:</span> <span class="value">${promissoryNote.numberHash}</span></div>
+          <div class="section"><span class="label">Emitente:</span> <span class="value">${client.name}</span></div>
+          <div class="section"><span class="label">CPF:</span> <span class="value">${client.cpf}</span></div>
+          <div class="section"><span class="label">Contato:</span> <span class="value">${client.phone} / ${client.email || 'sem email'}</span></div>
+          <div class="section"><span class="label">Endereço:</span> <span class="value">${client.street}${client.complement ? ', ' + client.complement : ''} - ${client.neighborhood}, ${client.city}/${client.state} - CEP ${client.cep}</span></div>
+          <div class="card">
+            <div class="section"><span class="label">Capital:</span> <span class="value">${formatCurrency(promissoryNote.capital)}</span></div>
+            <div class="section"><span class="label">Juros:</span> <span class="value">${promissoryNote.interestRate}%</span></div>
+            <div class="section"><span class="label">Emissão:</span> <span class="value">${formatDate(promissoryNote.issueDate)}</span></div>
+            <div class="section"><span class="label">Vencimento:</span> <span class="value">${formatDate(promissoryNote.dueDate)}</span></div>
+            <div class="section"><span class="label">Indicação:</span> <span class="value">${promissoryNote.indication}</span></div>
+            ${promissoryNote.observation ? `<div class="section"><span class="label">Observações:</span> <span class="value">${promissoryNote.observation}</span></div>` : ''}
+          </div>
+          <div class="card">
+            <div class="section"><span class="label">Empréstimo:</span> <span class="value">${formatCurrency(loan.amount)} liberado em ${formatDate(loan.startDate)}</span></div>
+            <div class="section"><span class="label">Total com juros:</span> <span class="value">${formatCurrency(loan.totalAmount)}</span></div>
+            <div class="section"><span class="label">Parcelas:</span> <span class="value">${loan.installmentsCount}x de ${formatCurrency(loan.totalAmount / loan.installmentsCount)}</span></div>
+            <div class="section schedule">
+              <div class="label">Agenda de pagamento</div>
+              ${schedule.map(s => `<div class="schedule-row"><span>Parcela ${s.number} - ${formatDate(s.dueDate)}</span><span>${formatCurrency(s.amount)}</span></div>`).join('')}
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    printable.document.title = fileName;
+    printable.document.close();
+    printable.focus();
+    printable.print();
   };
 
   return (
@@ -131,9 +219,14 @@ export const LoansView: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {loans.map(loan => (
+            {loans.map(loan => {
+              const clientInstallments = installments.filter(inst => inst.loanId === loan.id);
+              const loanClient = clients.find(c => c.id === loan.clientId);
+              const clientName = loanClient?.name || getClientName(loan.clientId);
+
+              return (
               <tr key={loan.id} className="hover:bg-slate-50 transition">
-                <td className="p-4 font-medium text-slate-800">{getClientName(loan.clientId)}</td>
+                <td className="p-4 font-medium text-slate-800">{clientName}</td>
                 <td className="p-4">{formatCurrency(loan.amount)}</td>
                 <td className="p-4 font-semibold text-emerald-600">{formatCurrency(loan.totalAmount)}</td>
                 <td className="p-4">{loan.installmentsCount}x</td>
@@ -149,6 +242,13 @@ export const LoansView: React.FC = () => {
                 {canAdd && (
                   <td className="p-4 text-center">
                     <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => loanClient && generatePromissoryNotePDF(clientName, loanClient, loan, clientInstallments)}
+                        className="p-2 rounded-lg hover:bg-emerald-50 text-emerald-600"
+                        aria-label="Gerar PDF da nota"
+                      >
+                        <FileText size={18} />
+                      </button>
                       <button
                         onClick={() => handleEditLoan(loan)}
                         className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
@@ -167,7 +267,8 @@ export const LoansView: React.FC = () => {
                   </td>
                 )}
               </tr>
-            ))}
+              );
+            })}
             {loans.length === 0 && (
                 <tr>
                     <td colSpan={canAdd ? 7 : 6} className="p-8 text-center text-slate-400">Nenhum empréstimo cadastrado.</td>
@@ -207,22 +308,30 @@ export const LoansView: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label>
-                    <input 
-                      type="number" 
-                      min="1" 
-                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white transition-colors" 
-                      value={amount} 
-                      onChange={e => setAmount(parseFloat(e.target.value))} 
+                    <input
+                      type="number"
+                      min="1"
+                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white transition-colors"
+                      value={amount}
+                      onChange={e => {
+                        const value = parseFloat(e.target.value);
+                        setAmount(value);
+                        setPromissoryNote(prev => ({ ...prev, capital: value }));
+                      }}
                     />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Juros (%)</label>
-                    <input 
-                      type="number" 
-                      min="0" 
-                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white transition-colors" 
-                      value={interestRate} 
-                      onChange={e => setInterestRate(parseFloat(e.target.value))} 
+                    <input
+                      type="number"
+                      min="0"
+                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white transition-colors"
+                      value={interestRate}
+                      onChange={e => {
+                        const value = parseFloat(e.target.value);
+                        setInterestRate(value);
+                        setPromissoryNote(prev => ({ ...prev, interestRate: value }));
+                      }}
                     />
                 </div>
               </div>
@@ -241,12 +350,16 @@ export const LoansView: React.FC = () => {
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">1ª Parcela</label>
-                    <input 
-                      type="date" 
-                      required 
-                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white transition-colors" 
-                      value={startDate} 
-                      onChange={e => setStartDate(e.target.value)} 
+                    <input
+                      type="date"
+                      required
+                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white transition-colors"
+                      value={startDate}
+                      onChange={e => {
+                        const value = e.target.value;
+                        setStartDate(value);
+                        setPromissoryNote(prev => ({ ...prev, issueDate: value, dueDate: prev.dueDate || value }));
+                      }}
                     />
                 </div>
               </div>
@@ -264,6 +377,98 @@ export const LoansView: React.FC = () => {
                 <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
                     <span className="text-sm font-bold text-slate-700">Parcelas:</span>
                     <span className="text-lg font-bold text-slate-900">{installmentsCount}x de {formatCurrency(installmentValue)}</span>
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <FileText size={18} className="text-emerald-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Nota promissória do empréstimo</p>
+                    <p className="text-xs text-slate-500">Os dados serão salvos junto ao empréstimo e usados na geração do PDF.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Indicação</label>
+                    <select
+                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
+                      value={promissoryNote.indication}
+                      onChange={e => handlePromissoryChange('indication', e.target.value as IndicationType)}
+                    >
+                      <option value="Garantia">Garantia</option>
+                      <option value="Sem Garantia">Sem Garantia</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Hash da Nota</label>
+                    <input
+                      readOnly
+                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white"
+                      value={promissoryNote.numberHash}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Capital (R$)</label>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
+                      placeholder="Valor principal"
+                      value={promissoryNote.capital}
+                      onChange={e => handlePromissoryChange('capital', parseFloat(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Juros (%)</label>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
+                      placeholder="Ex: 8"
+                      value={promissoryNote.interestRate}
+                      onChange={e => handlePromissoryChange('interestRate', parseFloat(e.target.value))}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Emissão</label>
+                    <input
+                      required
+                      type="date"
+                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
+                      value={promissoryNote.issueDate}
+                      onChange={e => handlePromissoryChange('issueDate', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Vencimento</label>
+                    <input
+                      required
+                      type="date"
+                      className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
+                      value={promissoryNote.dueDate}
+                      onChange={e => handlePromissoryChange('dueDate', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Observações</label>
+                  <textarea
+                    className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
+                    placeholder="Instruções adicionais para assinatura e cobrança"
+                    value={promissoryNote.observation || ''}
+                    onChange={e => handlePromissoryChange('observation', e.target.value)}
+                  />
                 </div>
               </div>
 
