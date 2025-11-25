@@ -101,7 +101,7 @@ export const LoansView: React.FC = () => {
 
     const client = clients.find(c => c.id === selectedClientId);
     if (client) {
-      generatePromissoryNotePDF(client.name, client, loanToPersist, generatedInstallments);
+      generatePromissoryNotePDF(client.name, client, loanToPersist, generatedInstallments, user?.name || 'Empresa credora');
     }
 
     setIsModalOpen(false);
@@ -129,7 +129,13 @@ export const LoansView: React.FC = () => {
     }
   };
 
-  const generatePromissoryNotePDF = (safeClientName: string, client: Client, loan: Loan, schedule: Installment[]) => {
+  const generatePromissoryNotePDF = (
+    safeClientName: string,
+    client: Client,
+    loan: Loan,
+    schedule: Installment[],
+    issuerName: string
+  ) => {
     if (!loan.promissoryNote) return;
 
     const printable = window.open('', '_blank', 'width=800,height=900');
@@ -156,6 +162,11 @@ export const LoansView: React.FC = () => {
             .schedule { margin-top: 8px; }
             .schedule-row { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; border-bottom: 1px solid #e2e8f0; }
             .schedule-row:last-child { border-bottom: none; }
+            .signatures { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
+            .signature-box { border: 1px dashed #cbd5e1; border-radius: 12px; padding: 12px; min-height: 140px; display: flex; flex-direction: column; justify-content: space-between; background: #f8fafc; }
+            .signature-title { text-transform: uppercase; font-size: 12px; letter-spacing: 0.04em; color: #475569; font-weight: 700; }
+            .signature-note { font-size: 12px; color: #64748b; margin-top: 8px; line-height: 1.4; }
+            .signature-line { margin-top: 18px; border-top: 1px solid #94a3b8; padding-top: 10px; text-align: center; font-weight: 700; color: #0f172a; }
           </style>
         </head>
         <body>
@@ -180,6 +191,25 @@ export const LoansView: React.FC = () => {
             <div class="section schedule">
               <div class="label">Agenda de pagamento</div>
               ${schedule.map(s => `<div class="schedule-row"><span>Parcela ${s.number} - ${formatDate(s.dueDate)}</span><span>${formatCurrency(s.amount)}</span></div>`).join('')}
+            </div>
+          </div>
+          <div class="card">
+            <div class="section"><span class="label">Autorização e assinaturas digitais</span></div>
+            <div class="signatures">
+              <div class="signature-box">
+                <div>
+                  <div class="signature-title">Assinatura do credor (empresa)</div>
+                  <p class="signature-note">Área reservada para assinatura digital do representante da empresa responsável pela emissão da nota promissória.</p>
+                </div>
+                <div class="signature-line">${issuerName || 'Empresa credora'}</div>
+              </div>
+              <div class="signature-box">
+                <div>
+                  <div class="signature-title">Assinatura do devedor (cliente)</div>
+                  <p class="signature-note">Confirmação de ciência e concordância com os valores, datas e condições descritas nesta nota.</p>
+                </div>
+                <div class="signature-line">${client.name}</div>
+              </div>
             </div>
           </div>
         </body>
@@ -243,7 +273,16 @@ export const LoansView: React.FC = () => {
                   <td className="p-4 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button
-                        onClick={() => loanClient && generatePromissoryNotePDF(clientName, loanClient, loan, clientInstallments)}
+                        onClick={() =>
+                          loanClient &&
+                          generatePromissoryNotePDF(
+                            clientName,
+                            loanClient,
+                            loan,
+                            clientInstallments,
+                            user?.name || 'Empresa credora'
+                          )
+                        }
                         className="p-2 rounded-lg hover:bg-emerald-50 text-emerald-600"
                         aria-label="Gerar PDF da nota"
                       >
