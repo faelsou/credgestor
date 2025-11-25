@@ -1,11 +1,11 @@
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../../App';
 import { Search, Plus, Phone, Mail, User, FileText, Pencil, Trash2, MapPin, Loader2 } from 'lucide-react';
-import { Client, IndicationType, PromissoryNote, UserRole } from '../../types';
+import { Client, IndicationType, Loan, PromissoryNote, UserRole } from '../../types';
 import { formatCurrency, formatDate, generateNoteHash } from '../../utils';
 
 export const ClientsView: React.FC = () => {
-  const { clients, addClient, updateClient, deleteClient, user } = useContext(AppContext);
+  const { clients, addClient, updateClient, deleteClient, user, loans } = useContext(AppContext);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClientId, setEditingClientId] = useState<string | null>(null);
@@ -33,6 +33,7 @@ export const ClientsView: React.FC = () => {
       email: '',
       cep: '',
       street: '',
+      complement: '',
       neighborhood: '',
       city: '',
       state: '',
@@ -101,6 +102,7 @@ export const ClientsView: React.FC = () => {
       email: '',
       cep: '',
       street: '',
+      complement: '',
       neighborhood: '',
       city: '',
       state: '',
@@ -138,6 +140,7 @@ export const ClientsView: React.FC = () => {
         email: newClient.email || '',
         cep: newClient.cep || '',
         street: newClient.street || '',
+        complement: newClient.complement || '',
         neighborhood: newClient.neighborhood || '',
         city: newClient.city || '',
         state: newClient.state || '',
@@ -149,7 +152,7 @@ export const ClientsView: React.FC = () => {
         updateClient(clientToSave);
       } else {
         addClient(clientToSave);
-        generatePromissoryNotePDF(clientToSave);
+        generatePromissoryNotePDF(clientToSave, []);
       }
 
       setIsModalOpen(false);
@@ -157,7 +160,18 @@ export const ClientsView: React.FC = () => {
     }
   };
 
-  const generatePromissoryNotePDF = (client: Client) => {
+  const describeLoanStatus = (status: Loan['status']) => {
+    switch (status) {
+      case 'ACTIVE':
+        return 'Em andamento';
+      case 'PAID':
+        return 'Quitado';
+      default:
+        return 'Inadimplente';
+    }
+  };
+
+  const generatePromissoryNotePDF = (client: Client, clientLoans: Loan[]) => {
     if (!client.promissoryNote) return;
 
     const { promissoryNote } = client;
@@ -189,12 +203,24 @@ export const ClientsView: React.FC = () => {
           <div class="section"><span class="label">Emitente:</span> <span class="value">${client.name}</span></div>
           <div class="section"><span class="label">CPF:</span> <span class="value">${client.cpf}</span></div>
           <div class="section"><span class="label">Contato:</span> <span class="value">${client.phone} / ${client.email || 'sem email'}</span></div>
+          <div class="section"><span class="label">Endereço:</span> <span class="value">${client.street}${client.complement ? ', ' + client.complement : ''} - ${client.neighborhood}, ${client.city}/${client.state} - CEP ${client.cep}</span></div>
           <div class="section"><span class="label">Capital:</span> <span class="value">${formatCurrency(promissoryNote.capital)}</span></div>
           <div class="section"><span class="label">Juros:</span> <span class="value">${promissoryNote.interestRate}%</span></div>
           <div class="section"><span class="label">Emissão:</span> <span class="value">${formatDate(promissoryNote.issueDate)}</span></div>
           <div class="section"><span class="label">Vencimento:</span> <span class="value">${formatDate(promissoryNote.dueDate)}</span></div>
           <div class="section"><span class="label">Indicação:</span> <span class="value">${promissoryNote.indication}</span></div>
           ${promissoryNote.observation ? `<div class="section"><span class="label">Observação:</span> <span class="value">${promissoryNote.observation}</span></div>` : ''}
+          <div class="section">
+            <span class="label">Empréstimos registrados:</span>
+            ${clientLoans.length === 0
+              ? '<div class="value">Nenhum empréstimo ativo para este cliente.</div>'
+              : `<ul style="margin-top:8px; padding-left:16px;">${clientLoans.map(loan => `
+                  <li style="margin-bottom:6px;">
+                    <div class="value"><strong>Valor:</strong> ${formatCurrency(loan.amount)} | <strong>Total c/ juros:</strong> ${formatCurrency(loan.totalAmount)}</div>
+                    <div class="value"><strong>Parcelas:</strong> ${loan.installmentsCount}x | <strong>Início:</strong> ${formatDate(loan.startDate)}</div>
+                    <div class="value"><strong>Status:</strong> ${describeLoanStatus(loan.status)}</div>
+                  </li>`).join('')}</ul>`}
+          </div>
           <div class="signature">
             <p>Assinatura Digital: _____________________________________</p>
             <p style="font-size: 12px; color: #334155;">Confirmação para assinatura eletrônica.</p>
@@ -307,7 +333,7 @@ export const ClientsView: React.FC = () => {
               <div className="flex items-start gap-2">
                 <MapPin size={14} className="text-slate-400 mt-0.5" />
                 <div>
-                  <div className="font-medium text-slate-700">{client.street} - {client.neighborhood}</div>
+                  <div className="font-medium text-slate-700">{client.street}{client.complement ? `, ${client.complement}` : ''} - {client.neighborhood}</div>
                   <div className="text-xs text-slate-500">{client.city}/{client.state} - CEP {client.cep}</div>
                 </div>
               </div>
@@ -335,7 +361,10 @@ export const ClientsView: React.FC = () => {
                     <span className="font-semibold">{client.promissoryNote.indication}</span>
                   </div>
                   <button
-                    onClick={() => generatePromissoryNotePDF(client)}
+                    onClick={() => {
+                      const clientLoans = loans.filter(loan => loan.clientId === client.id);
+                      generatePromissoryNotePDF(client, clientLoans);
+                    }}
                     className="w-full mt-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-emerald-100 transition"
                   >
                     <FileText size={14} /> Gerar PDF para assinatura
@@ -419,6 +448,16 @@ export const ClientsView: React.FC = () => {
                     placeholder="Rua e número"
                     value={newClient.street}
                     onChange={e => setNewClient({ ...newClient, street: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Complemento</label>
+                  <input
+                    type="text"
+                    className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-colors"
+                    placeholder="Apto, bloco, sala (opcional)"
+                    value={newClient.complement}
+                    onChange={e => setNewClient({ ...newClient, complement: e.target.value })}
                   />
                 </div>
                 <div>
