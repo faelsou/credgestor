@@ -56,7 +56,13 @@ const MOCK_CLIENTS: Client[] = [
 ];
 
 const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'Administrador Principal', email: 'admin@credgestor.com', role: UserRole.ADMIN },
+  {
+    id: 'u1',
+    name: 'Administrador Principal',
+    email: 'admin@credgestor.com',
+    role: UserRole.ADMIN,
+    whatsappContacts: ['+5511999991111', '+5511988882222']
+  },
   { id: 'u2', name: 'Cobrador Externo', email: 'cobrador@credgestor.com', role: UserRole.COLLECTION },
 ];
 
@@ -90,6 +96,8 @@ const MOCK_INSTALLMENTS: Installment[] = [
   { id: 'i2', loanId: 'l1', clientId: '1', number: 2, dueDate: TODAY, amount: 550, amountPaid: 0, status: InstallmentStatus.PENDING },
 ];
 
+export type ThemeOption = 'light' | 'dark-emerald' | 'dark-graphite';
+
 export const AppContext = React.createContext<{
   user: User | null;
   usersList: User[];
@@ -109,6 +117,8 @@ export const AppContext = React.createContext<{
   removeUser: (id: string) => void;
   view: string;
   setView: (v: string) => void;
+  theme: ThemeOption;
+  setTheme: (theme: ThemeOption) => void;
 }>({} as any);
 
 const App: React.FC = () => {
@@ -120,6 +130,7 @@ const App: React.FC = () => {
   const [loans, setLoans] = useState<Loan[]>(MOCK_LOANS);
   const [installments, setInstallments] = useState<Installment[]>(MOCK_INSTALLMENTS);
   const [usersList, setUsersList] = useState<User[]>(MOCK_USERS);
+  const [theme, setTheme] = useState<ThemeOption>('light');
 
   // Check for late installments on load
   useEffect(() => {
@@ -214,8 +225,17 @@ const App: React.FC = () => {
     addUser,
     removeUser,
     view,
-    setView
-  }), [user, usersList, clients, loans, installments, view]);
+    setView,
+    theme,
+    setTheme
+  }), [user, usersList, clients, loans, installments, view, theme]);
+
+  useEffect(() => {
+    const body = document.body;
+    const themeClasses: ThemeOption[] = ['light', 'dark-emerald', 'dark-graphite'];
+    body.classList.remove(...themeClasses.map(t => `theme-${t}`));
+    body.classList.add(`theme-${theme}`);
+  }, [theme]);
 
   if (!user) {
     return (

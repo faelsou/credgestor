@@ -6,11 +6,12 @@ import { Shield, Briefcase, Plus, Trash2, Mail } from 'lucide-react';
 export const UsersView: React.FC = () => {
   const { usersList, addUser, removeUser, user } = useContext(AppContext);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
   // New User State
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>(UserRole.COLLECTION);
+  const [whatsappContacts, setWhatsappContacts] = useState('');
 
   if (user?.role !== UserRole.ADMIN) {
     return (
@@ -28,13 +29,18 @@ export const UsersView: React.FC = () => {
       id: Math.random().toString(36).substr(2, 9),
       name,
       email,
-      role
+      role,
+      whatsappContacts: whatsappContacts
+        .split(/[,;\n]/)
+        .map(item => item.trim())
+        .filter(Boolean)
     };
     addUser(newUser);
     setIsModalOpen(false);
     setName('');
     setEmail('');
     setRole(UserRole.COLLECTION);
+    setWhatsappContacts('');
   };
 
   return (
@@ -77,6 +83,16 @@ export const UsersView: React.FC = () => {
                 <div className="flex items-center gap-2 text-slate-500 text-sm mb-4">
                     <Mail size={14} /> {u.email}
                 </div>
+                {u.whatsappContacts?.length ? (
+                  <div className="text-xs text-slate-500 space-y-1">
+                    <p className="font-semibold text-slate-600">WhatsApp Admin</p>
+                    <ul className="space-y-1">
+                      {u.whatsappContacts.map(contact => (
+                        <li key={contact} className="font-mono text-slate-600">{contact}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
             </div>
 
             <div className="pt-4 border-t border-slate-100 mt-auto">
@@ -108,13 +124,24 @@ export const UsersView: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                <input 
-                    required 
-                    type="email" 
+                <input
+                    required
+                    type="email"
                     className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white" 
-                    value={email} 
-                    onChange={e => setEmail(e.target.value)} 
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">WhatsApp do Admin (opcional)</label>
+                <textarea
+                  className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white text-sm"
+                  placeholder="Inclua um número por linha ou separado por vírgula"
+                  rows={3}
+                  value={whatsappContacts}
+                  onChange={e => setWhatsappContacts(e.target.value)}
+                />
+                <p className="text-xs text-slate-500 mt-1">Números cadastrados receberão o relatório diário automaticamente.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Acesso</label>
