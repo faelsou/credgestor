@@ -50,7 +50,8 @@ export enum LoanModel {
   SIMPLE_INTEREST = 'SIMPLE_INTEREST',
   COMPOUND_INTEREST = 'COMPOUND_INTEREST',
   SAC = 'SAC',
-  PRICE = 'PRICE'
+  PRICE = 'PRICE',
+  PARTICULAR = 'PARTICULAR'
 }
 
 export enum InstallmentStatus {
@@ -68,6 +69,8 @@ export interface Installment {
   dueDate: string;
   amount: number;
   amountPaid: number;
+  interestAmount?: number;
+  principalAmount?: number;
   status: InstallmentStatus;
   paidDate?: string;
 }

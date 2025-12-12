@@ -6,7 +6,7 @@ import { InstallmentStatus, LoanStatus, UserRole } from '../../types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 export const DashboardHome: React.FC = () => {
-  const { clients, installments, loans, user } = useContext(AppContext);
+  const { clients, installments, loans, user, setView } = useContext(AppContext);
   const [sendingReport, setSendingReport] = useState(false);
   const [detailFilter, setDetailFilter] = useState<'PAID' | 'RECEIVABLE' | 'LATE' | null>(null);
   const today = new Date().toISOString().split('T')[0];
@@ -58,41 +58,63 @@ export const DashboardHome: React.FC = () => {
 
   const detailTotal = detailedInstallments.reduce((acc, inst) => acc + (inst.amountPaid || inst.amount), 0);
 
-  const filteredLoans = useMemo(() => {
+  const installmentsInRange = useMemo(() => {
     const start = new Date(reportStartDate);
     start.setHours(0, 0, 0, 0);
     const end = new Date(reportEndDate);
     end.setHours(23, 59, 59, 999);
 
-    return loans.filter(loan => {
-      const loanDate = new Date(loan.startDate);
-      return loanDate >= start && loanDate <= end;
+    return installments.filter(inst => {
+      const due = new Date(inst.dueDate);
+      return due >= start && due <= end;
     });
-  }, [loans, reportEndDate, reportStartDate]);
+  }, [installments, reportEndDate, reportStartDate]);
 
-  const sortedRangeLoans = useMemo(
-    () => [...filteredLoans].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()),
-    [filteredLoans]
-  );
+  const rangeLoans = useMemo(() => {
+    const map = new Map<string, { loanId: string; capital: number; interest: number; earliestDue: string }>();
 
-  const dailyCapital = sortedRangeLoans.reduce((acc, loan) => acc + loan.amount, 0);
-  const dailyInterest = sortedRangeLoans.reduce((acc, loan) => acc + (loan.totalAmount - loan.amount), 0);
+    installmentsInRange.forEach(inst => {
+      const interestPortion = inst.interestAmount ?? Math.max(0, inst.amount - (inst.principalAmount ?? inst.amount));
+      const principalPortion = inst.principalAmount ?? Math.max(0, inst.amount - interestPortion);
+
+      const existing = map.get(inst.loanId);
+      if (existing) {
+        existing.capital += principalPortion;
+        existing.interest += interestPortion;
+        existing.earliestDue = new Date(inst.dueDate) < new Date(existing.earliestDue) ? inst.dueDate : existing.earliestDue;
+      } else {
+        map.set(inst.loanId, { loanId: inst.loanId, capital: principalPortion, interest: interestPortion, earliestDue: inst.dueDate });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => new Date(a.earliestDue).getTime() - new Date(b.earliestDue).getTime());
+  }, [installmentsInRange]);
+
+  const dailyCapital = rangeLoans.reduce((acc, entry) => acc + entry.capital, 0);
+  const dailyInterest = rangeLoans.reduce((acc, entry) => acc + entry.interest, 0);
   const rangeDetailTitle = rangeDetail === 'capital' ? 'Capital por cliente' : 'Juros por cliente';
   const rangeDetailTotal = rangeDetail === 'capital' ? dailyCapital : dailyInterest;
 
   const exportExcelReport = () => {
-    const data = (filteredLoans.length ? filteredLoans : loans).map(loan => {
-      const client = clients.find(c => c.id === loan.clientId);
-      const interest = loan.totalAmount - loan.amount;
+    const data = installmentsInRange.map(inst => {
+      const loan = loans.find(l => l.id === inst.loanId);
+      const client = clients.find(c => c.id === inst.clientId);
+      const interestPortion = inst.interestAmount ?? Math.max(0, inst.amount - (inst.principalAmount ?? inst.amount));
+      const principalPortion = inst.principalAmount ?? Math.max(0, inst.amount - interestPortion);
       return {
-        Data: formatDate(loan.startDate),
+        Data: formatDate(inst.dueDate),
         Cliente: client?.name || 'Cliente não encontrado',
         CPF: client?.cpf || '',
-        Capital: loan.amount,
-        Juros: interest,
-        Total: loan.totalAmount
+        Capital: principalPortion,
+        Juros: interestPortion,
+        Total: loan ? loan.totalAmount : inst.amount
       };
     });
+
+    if (data.length === 0) {
+      alert('Nenhum registro no período selecionado. Ajuste as datas para exportar.');
+      return;
+    }
 
     const header = ['Data', 'Cliente', 'CPF', 'Capital', 'Juros', 'Total'];
     const rows = data.map(row => [row.Data, row.Cliente, row.CPF, row.Capital, row.Juros, row.Total]);
@@ -248,7 +270,7 @@ export const DashboardHome: React.FC = () => {
           </button>
           <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
             <p className="text-xs uppercase font-semibold text-slate-500">Registros filtrados</p>
-            <p className="text-2xl font-bold text-slate-800">{sortedRangeLoans.length}</p>
+            <p className="text-2xl font-bold text-slate-800">{rangeLoans.length}</p>
           </div>
         </div>
       </div>
@@ -259,7 +281,7 @@ export const DashboardHome: React.FC = () => {
             <div>
               <p className="text-xs uppercase font-semibold text-slate-500">{rangeDetailTitle}</p>
               <h3 className="text-2xl font-bold text-slate-800">{formatCurrency(rangeDetailTotal)}</h3>
-              <p className="text-sm text-slate-500">{sortedRangeLoans.length} empréstimos encontrados</p>
+              <p className="text-sm text-slate-500">{rangeLoans.length} empréstimos encontrados</p>
             </div>
             <button
               onClick={() => setRangeDetail(null)}
@@ -269,23 +291,23 @@ export const DashboardHome: React.FC = () => {
             </button>
           </div>
 
-          {sortedRangeLoans.length === 0 && (
+          {rangeLoans.length === 0 && (
             <p className="text-sm text-slate-500">Nenhum empréstimo no período selecionado.</p>
           )}
 
           <div className="divide-y divide-slate-100">
-            {sortedRangeLoans.map(loan => {
-              const client = clients.find(c => c.id === loan.clientId);
-              const interest = loan.totalAmount - loan.amount;
+            {rangeLoans.map(rangeLoan => {
+              const loan = loans.find(l => l.id === rangeLoan.loanId);
+              const client = loan ? clients.find(c => c.id === loan.clientId) : undefined;
               return (
-                <div key={loan.id} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div key={rangeLoan.loanId} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <p className="font-semibold text-slate-800">{client?.name || 'Cliente desconhecido'}</p>
-                    <p className="text-sm text-slate-500">Data: {formatDate(loan.startDate)} • CPF: {client?.cpf || '---'}</p>
+                    <p className="text-sm text-slate-500">Vencimento: {formatDate(rangeLoan.earliestDue)} • CPF: {client?.cpf || '---'}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-slate-500">{rangeDetail === 'capital' ? 'Capital liberado' : 'Juros previstos'}</p>
-                    <p className="text-lg font-bold text-slate-800">{formatCurrency(rangeDetail === 'capital' ? loan.amount : interest)}</p>
+                    <p className="text-sm text-slate-500">{rangeDetail === 'capital' ? 'Capital do período' : 'Juros do período'}</p>
+                    <p className="text-lg font-bold text-slate-800">{formatCurrency(rangeDetail === 'capital' ? rangeLoan.capital : rangeLoan.interest)}</p>
                   </div>
                 </div>
               );
@@ -368,10 +390,16 @@ export const DashboardHome: React.FC = () => {
                 <span>Novos Clientes (Mês)</span>
                 <span className="font-bold">{clients.length}</span>
              </div>
-             <button className="w-full py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition">
+             <button
+               onClick={() => setView('loans')}
+               className="w-full py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition"
+             >
                 Novo Empréstimo
              </button>
-             <button className="w-full py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition">
+             <button
+               onClick={() => setDetailFilter('LATE')}
+               className="w-full py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition"
+             >
                 Ver Inadimplentes
              </button>
           </div>
