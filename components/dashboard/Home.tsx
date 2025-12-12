@@ -6,7 +6,7 @@ import { InstallmentStatus, LoanStatus, UserRole } from '../../types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 export const DashboardHome: React.FC = () => {
-  const { clients, installments, loans, user, setView } = useContext(AppContext);
+  const { clients, installments, loans, user, setView, usersList } = useContext(AppContext);
   const [sendingReport, setSendingReport] = useState(false);
   const [detailFilter, setDetailFilter] = useState<'PAID' | 'RECEIVABLE' | 'LATE' | null>(null);
   const today = new Date().toISOString().split('T')[0];
@@ -133,11 +133,25 @@ export const DashboardHome: React.FC = () => {
 
   const handleSendAdminReport = async () => {
     setSendingReport(true);
-    
+
+    const adminContacts = Array.from(new Set(
+      usersList
+        .filter(u => u.role === UserRole.ADMIN)
+        .flatMap(u => u.whatsappContacts || [])
+        .filter(Boolean)
+    ));
+
+    if (adminContacts.length === 0) {
+      alert('Nenhum contato de WhatsApp configurado para administradores. Cadastre um número em Equipe / Acessos.');
+      setSendingReport(false);
+      return;
+    }
+
     // Prepara dados para o n8n
     const payload = {
       type: 'ADMIN_REPORT',
       adminName: user?.name,
+      adminContacts,
       totalLate: stats.totalLate,
       countLate: stats.lateCount,
       details: stats.lateInstallments.map(i => ({
@@ -150,7 +164,7 @@ export const DashboardHome: React.FC = () => {
     await sendToN8N(payload);
 
     setTimeout(() => {
-      alert(`Relatório enviado para o WhatsApp do Admin! (${stats.lateCount} atrasos identificados)`);
+      alert(`Relatório enviado para ${adminContacts.length} contato(s) de Admin no WhatsApp! (${stats.lateCount} atrasos identificados)`);
       setSendingReport(false);
     }, 1500);
   };
