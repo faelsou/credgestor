@@ -108,9 +108,8 @@ export const LandingPage: React.FC<{ onLogin: () => void }> = () => {
               </a>
             </div>
             <div className="mt-8 flex items-center justify-center lg:justify-start gap-6 text-sm text-slate-500 font-medium">
-              <span className="flex items-center gap-1"><CheckCircle size={16} className="text-emerald-500" /> Teste grátis</span>
-              <span className="flex items-center gap-1"><CheckCircle size={16} className="text-emerald-500" /> Sem cartão</span>
               <span className="flex items-center gap-1"><CheckCircle size={16} className="text-emerald-500" /> App Web</span>
+              <span className="flex items-center gap-1"><CheckCircle size={16} className="text-emerald-500" /> App Mobile</span>
             </div>
           </div>
           
@@ -228,8 +227,8 @@ export const LandingPage: React.FC<{ onLogin: () => void }> = () => {
             <div className="p-8">
               <h3 className="text-xl font-semibold text-slate-500 uppercase tracking-wide">Plano PRO</h3>
               <div className="mt-4 flex justify-center items-baseline">
-                <span className="text-5xl font-extrabold tracking-tight">R$ 149,90</span>
-                <span className="ml-1 text-xl text-slate-500">/mês</span>
+                <span className="text-5xl font-extrabold tracking-tight">A Consultar</span>
+                <span className="ml-1 text-xl text-slate-500"></span>
               </div>
               <ul className="mt-8 space-y-4 text-left">
                 {['Clientes ilimitados', 'Empréstimos ilimitados', 'Acesso pelo celular e PC', 'Suporte prioritário', 'Integração WhatsApp Web'].map((feat, i) => (
