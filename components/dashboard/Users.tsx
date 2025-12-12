@@ -6,10 +6,11 @@ import { Shield, Briefcase, Plus, Trash2, Mail } from 'lucide-react';
 export const UsersView: React.FC = () => {
   const { usersList, addUser, removeUser, user } = useContext(AppContext);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
   // New User State
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [role, setRole] = useState<UserRole>(UserRole.COLLECTION);
 
   if (user?.role !== UserRole.ADMIN) {
@@ -28,12 +29,14 @@ export const UsersView: React.FC = () => {
       id: Math.random().toString(36).substr(2, 9),
       name,
       email,
+      phone,
       role
     };
     addUser(newUser);
     setIsModalOpen(false);
     setName('');
     setEmail('');
+    setPhone('');
     setRole(UserRole.COLLECTION);
   };
 
@@ -77,6 +80,9 @@ export const UsersView: React.FC = () => {
                 <div className="flex items-center gap-2 text-slate-500 text-sm mb-4">
                     <Mail size={14} /> {u.email}
                 </div>
+                {u.phone && (
+                  <div className="text-xs text-slate-400">WhatsApp: {u.phone}</div>
+                )}
             </div>
 
             <div className="pt-4 border-t border-slate-100 mt-auto">
@@ -108,12 +114,23 @@ export const UsersView: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                <input 
-                    required 
-                    type="email" 
-                    className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white" 
-                    value={email} 
-                    onChange={e => setEmail(e.target.value)} 
+                <input
+                    required
+                    type="email"
+                    className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">WhatsApp (com DDI)</label>
+                <input
+                    required
+                    type="tel"
+                    placeholder="Ex: +5511999999999"
+                    className="w-full border border-slate-300 rounded-lg p-3 bg-slate-50 focus:bg-white"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
                 />
               </div>
               <div>

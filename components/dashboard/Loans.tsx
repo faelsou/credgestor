@@ -39,8 +39,10 @@ export const LoansView: React.FC = () => {
     return principal * ((rateDecimal * factor) / (factor - 1));
   };
 
+  type SchedulePreviewItem = { number: number; dueDate: string; amount: number; interest: number; principal: number };
+
   const schedulePreview = useMemo(() => {
-    const schedule: { number: number; dueDate: string; amount: number }[] = [];
+    const schedule: SchedulePreviewItem[] = [];
     const rateDecimal = interestRate / 100;
     let remainingPrincipal = amount;
     const amortizationBase = installmentsCount > 0 ? amount / installmentsCount : 0;
@@ -49,35 +51,49 @@ export const LoansView: React.FC = () => {
     for (let i = 1; i <= installmentsCount; i++) {
       const dueDate = addMonths(startDate, i);
       let installmentAmount = amortizationBase;
+      let interestPortion = 0;
+      let principalPortion = amortizationBase;
 
       switch (loanModel) {
         case LoanModel.FIXED_AMORTIZATION:
           installmentAmount = amortizationBase;
-          remainingPrincipal -= amortizationBase;
+          principalPortion = amortizationBase;
+          remainingPrincipal -= principalPortion;
           break;
         case LoanModel.SIMPLE_INTEREST: {
-          const interestPortion = amount * rateDecimal;
-          installmentAmount = amortizationBase + interestPortion;
-          remainingPrincipal -= amortizationBase;
+          interestPortion = amount * rateDecimal;
+          principalPortion = amortizationBase;
+          installmentAmount = principalPortion + interestPortion;
+          remainingPrincipal -= principalPortion;
           break;
         }
         case LoanModel.COMPOUND_INTEREST: {
-          const interestPortion = remainingPrincipal * rateDecimal;
-          installmentAmount = amortizationBase + interestPortion;
-          remainingPrincipal = remainingPrincipal + interestPortion - amortizationBase;
+          interestPortion = remainingPrincipal * rateDecimal;
+          principalPortion = Math.min(amortizationBase, remainingPrincipal);
+          installmentAmount = principalPortion + interestPortion;
+          remainingPrincipal = remainingPrincipal + interestPortion - principalPortion;
           break;
         }
         case LoanModel.SAC: {
-          const interestPortion = remainingPrincipal * rateDecimal;
-          installmentAmount = amortizationBase + interestPortion;
-          remainingPrincipal -= amortizationBase;
+          interestPortion = remainingPrincipal * rateDecimal;
+          principalPortion = amortizationBase;
+          installmentAmount = principalPortion + interestPortion;
+          remainingPrincipal -= principalPortion;
           break;
         }
         case LoanModel.PRICE: {
-          const interestPortion = remainingPrincipal * rateDecimal;
+          interestPortion = remainingPrincipal * rateDecimal;
           const amortization = priceInstallment - interestPortion;
+          principalPortion = amortization;
           installmentAmount = priceInstallment;
-          remainingPrincipal -= amortization;
+          remainingPrincipal -= principalPortion;
+          break;
+        }
+        case LoanModel.PARTICULAR: {
+          interestPortion = amount * rateDecimal;
+          principalPortion = amortizationBase;
+          installmentAmount = principalPortion + interestPortion;
+          remainingPrincipal = Math.max(0, remainingPrincipal - principalPortion);
           break;
         }
         default:
@@ -87,7 +103,9 @@ export const LoansView: React.FC = () => {
       schedule.push({
         number: i,
         dueDate,
-        amount: Number(installmentAmount.toFixed(2))
+        amount: Number(installmentAmount.toFixed(2)),
+        interest: Number(interestPortion.toFixed(2)),
+        principal: Number(principalPortion.toFixed(2))
       });
     }
 
@@ -113,6 +131,8 @@ export const LoansView: React.FC = () => {
         return 'SAC';
       case LoanModel.PRICE:
         return 'Price';
+      case LoanModel.PARTICULAR:
+        return 'Modelo Particular';
       default:
         return model;
     }
@@ -140,16 +160,18 @@ export const LoansView: React.FC = () => {
 
     const loanId = editingLoan?.id || Math.random().toString(36).substr(2, 9);
     
-    const generatedInstallments: Installment[] = schedulePreview.map(scheduleItem => ({
-      id: `inst_${loanId}_${scheduleItem.number}`,
-      loanId: loanId,
-      clientId: selectedClientId,
-      number: scheduleItem.number,
-      dueDate: scheduleItem.dueDate,
-      amount: scheduleItem.amount,
-      amountPaid: 0,
-      status: InstallmentStatus.PENDING
-    }));
+      const generatedInstallments: Installment[] = schedulePreview.map(scheduleItem => ({
+        id: `inst_${loanId}_${scheduleItem.number}`,
+        loanId: loanId,
+        clientId: selectedClientId,
+        number: scheduleItem.number,
+        dueDate: scheduleItem.dueDate,
+        amount: scheduleItem.amount,
+        interestAmount: scheduleItem.interest,
+        principalAmount: scheduleItem.principal,
+        amountPaid: 0,
+        status: InstallmentStatus.PENDING
+      }));
 
     const lastDueDate = generatedInstallments[generatedInstallments.length - 1]?.dueDate || startDate;
     const promissoryToSave: PromissoryNote = {
@@ -244,6 +266,7 @@ export const LoansView: React.FC = () => {
             .schedule { margin-top: 8px; }
             .schedule-row { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; border-bottom: 1px solid #e2e8f0; }
             .schedule-row:last-child { border-bottom: none; }
+            .schedule-meta { font-size: 11px; color: #64748b; margin-top: 4px; }
             .signatures { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
             .signature-box { border: 1px dashed #cbd5e1; border-radius: 12px; padding: 12px; min-height: 140px; display: flex; flex-direction: column; justify-content: space-between; background: #f8fafc; }
             .signature-title { text-transform: uppercase; font-size: 12px; letter-spacing: 0.04em; color: #475569; font-weight: 700; }
@@ -273,7 +296,7 @@ export const LoansView: React.FC = () => {
             <div class="section"><span class="label">Parcelas:</span> <span class="value">${loan.installmentsCount}x de ${formatCurrency(loan.totalAmount / loan.installmentsCount)}</span></div>
             <div class="section schedule">
               <div class="label">Agenda de pagamento</div>
-              ${schedule.map(s => `<div class="schedule-row"><span>Parcela ${s.number} - ${formatDate(s.dueDate)}</span><span>${formatCurrency(s.amount)}</span></div>`).join('')}
+              ${schedule.map(s => `<div class="schedule-row"><div><div>Parcela ${s.number} - ${formatDate(s.dueDate)}</div><div class="schedule-meta">Juros ${formatCurrency(s.interestAmount ?? Math.max(0, s.amount - (s.principalAmount ?? 0)))} • Amortização ${formatCurrency(s.principalAmount ?? s.amount)}</div></div><span>${formatCurrency(s.amount)}</span></div>`).join('')}
             </div>
           </div>
           <div class="card">
@@ -472,6 +495,7 @@ export const LoansView: React.FC = () => {
                   <option value={LoanModel.COMPOUND_INTEREST}>Juros Compostos</option>
                   <option value={LoanModel.SAC}>SAC</option>
                   <option value={LoanModel.PRICE}>Price</option>
+                  <option value={LoanModel.PARTICULAR}>Modelo Particular</option>
                 </select>
               </div>
 
@@ -520,6 +544,34 @@ export const LoansView: React.FC = () => {
                 <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
                     <span className="text-sm font-bold text-slate-700">Parcelas:</span>
                     <span className="text-lg font-bold text-slate-900">{installmentsCount}x de {formatCurrency(averageInstallment)}</span>
+                </div>
+              </div>
+
+              {loanModel === LoanModel.PARTICULAR && (
+                <div className="border border-amber-200 bg-amber-50 text-amber-900 rounded-xl p-3 text-sm leading-relaxed">
+                  <p className="font-semibold">Modelo Particular</p>
+                  <p>Em cada parcela o cliente paga juros fixos de {formatCurrency(amount * (interestRate / 100))} mais a amortização de {formatCurrency(installmentsCount > 0 ? amount / installmentsCount : 0)}, conforme solicitado.</p>
+                </div>
+              )}
+
+              <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Simulação das parcelas</p>
+                    <p className="text-xs text-slate-500">Juros e amortização por parcela para enviar ao cliente.</p>
+                  </div>
+                  <span className="text-xs font-bold px-2 py-1 rounded-full bg-slate-100 text-slate-700">{loanModelLabel(loanModel)}</span>
+                </div>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {schedulePreview.map(item => (
+                    <div key={item.number} className="flex justify-between items-start border-b border-slate-100 pb-2 last:border-0">
+                      <div>
+                        <div className="text-sm font-medium text-slate-800">Parcela {item.number} - {formatDate(item.dueDate)}</div>
+                        <div className="text-xs text-slate-500">Juros {formatCurrency(item.interest)} • Amortização {formatCurrency(item.principal)}</div>
+                      </div>
+                      <div className="text-sm font-semibold text-slate-900">{formatCurrency(item.amount)}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
 

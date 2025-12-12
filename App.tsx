@@ -6,7 +6,7 @@ import { ClientsView } from './components/dashboard/Clients';
 import { LoansView } from './components/dashboard/Loans';
 import { InstallmentsView } from './components/dashboard/Installments';
 import { UsersView } from './components/dashboard/Users';
-import { User, UserRole, Client, Loan, Installment, LoanStatus, InstallmentStatus, LoanModel } from './types';
+import { User, UserRole, Client, Loan, Installment, LoanStatus, InstallmentStatus, LoanModel, ThemeMode } from './types';
 import { isLate } from './utils';
 
 // --- MOCK DATA INITIALIZATION ---
@@ -56,8 +56,9 @@ const MOCK_CLIENTS: Client[] = [
 ];
 
 const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'Administrador Principal', email: 'admin@credgestor.com', role: UserRole.ADMIN },
-  { id: 'u2', name: 'Cobrador Externo', email: 'cobrador@credgestor.com', role: UserRole.COLLECTION },
+  { id: 'u1', name: 'Administrador Principal', email: 'admin@credgestor.com', phone: '+5511999999999', role: UserRole.ADMIN },
+  { id: 'u2', name: 'Gestor Financeiro', email: 'financeiro@credgestor.com', phone: '+5511988888888', role: UserRole.ADMIN },
+  { id: 'u3', name: 'Cobrador Externo', email: 'cobrador@credgestor.com', phone: '+5511977777777', role: UserRole.COLLECTION },
 ];
 
 const TODAY = new Date().toISOString().split('T')[0];
@@ -109,11 +110,14 @@ export const AppContext = React.createContext<{
   removeUser: (id: string) => void;
   view: string;
   setView: (v: string) => void;
+  theme: ThemeMode;
+  setTheme: (t: ThemeMode) => void;
 }>({} as any);
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [view, setView] = useState('home'); // home, clients, loans, installments, users
+  const [theme, setTheme] = useState<ThemeMode>('light');
   
   // App Data State
   const [clients, setClients] = useState<Client[]>(MOCK_CLIENTS);
@@ -130,6 +134,11 @@ const App: React.FC = () => {
       return inst;
     }));
   }, []);
+
+  useEffect(() => {
+    document.body.classList.remove('theme-light', 'theme-dark-emerald', 'theme-dark-contrast');
+    document.body.classList.add(`theme-${theme}`);
+  }, [theme]);
 
   const login = (email: string) => {
     const foundUser = usersList.find(u => u.email === email);
@@ -214,8 +223,10 @@ const App: React.FC = () => {
     addUser,
     removeUser,
     view,
-    setView
-  }), [user, usersList, clients, loans, installments, view]);
+    setView,
+    theme,
+    setTheme
+  }), [user, usersList, clients, loans, installments, view, theme]);
 
   if (!user) {
     return (

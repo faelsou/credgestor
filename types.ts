@@ -7,6 +7,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   role: UserRole;
 }
 
@@ -50,7 +51,8 @@ export enum LoanModel {
   SIMPLE_INTEREST = 'SIMPLE_INTEREST',
   COMPOUND_INTEREST = 'COMPOUND_INTEREST',
   SAC = 'SAC',
-  PRICE = 'PRICE'
+  PRICE = 'PRICE',
+  PARTICULAR = 'PARTICULAR'
 }
 
 export enum InstallmentStatus {
@@ -68,6 +70,8 @@ export interface Installment {
   dueDate: string;
   amount: number;
   amountPaid: number;
+  interestAmount?: number;
+  principalAmount?: number;
   status: InstallmentStatus;
   paidDate?: string;
 }
@@ -90,3 +94,5 @@ export interface PromissoryNote {
   numberHash: string;
   observation?: string;
 }
+
+export type ThemeMode = 'light' | 'dark-emerald' | 'dark-contrast';

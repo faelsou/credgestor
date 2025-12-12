@@ -13,6 +13,88 @@
       ::-webkit-scrollbar-track { background: #f1f5f9; }
       ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
       ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+      body.theme-light {
+        background: #f8fafc;
+        color: #0f172a;
+      }
+
+      body.theme-dark-emerald {
+        background: #0b1220;
+        color: #e2e8f0;
+      }
+
+      body.theme-dark-contrast {
+        background: #0c0c0d;
+        color: #f8fafc;
+      }
+
+      body.theme-dark-emerald .bg-white,
+      body.theme-dark-contrast .bg-white {
+        background-color: #0f172a !important;
+        color: #e2e8f0 !important;
+      }
+
+      body.theme-dark-contrast .bg-white {
+        background-color: #111827 !important;
+      }
+
+      body.theme-dark-emerald .bg-slate-50,
+      body.theme-dark-contrast .bg-slate-50 {
+        background-color: #0b1220 !important;
+        color: #e2e8f0 !important;
+      }
+
+      body.theme-dark-emerald .text-slate-900,
+      body.theme-dark-emerald .text-slate-800,
+      body.theme-dark-contrast .text-slate-900,
+      body.theme-dark-contrast .text-slate-800 {
+        color: #e2e8f0 !important;
+      }
+
+      body.theme-dark-emerald .text-slate-700,
+      body.theme-dark-emerald .text-slate-600,
+      body.theme-dark-contrast .text-slate-700,
+      body.theme-dark-contrast .text-slate-600 {
+        color: #cbd5f5 !important;
+      }
+
+      body.theme-dark-emerald .text-slate-500,
+      body.theme-dark-emerald .text-slate-400,
+      body.theme-dark-contrast .text-slate-500,
+      body.theme-dark-contrast .text-slate-400 {
+        color: #94a3b8 !important;
+      }
+
+      body.theme-dark-emerald .border-slate-200,
+      body.theme-dark-emerald .border-slate-100,
+      body.theme-dark-contrast .border-slate-200,
+      body.theme-dark-contrast .border-slate-100 {
+        border-color: #1f2937 !important;
+      }
+
+      body.theme-dark-contrast .border-slate-200,
+      body.theme-dark-contrast .border-slate-100 {
+        border-color: #262626 !important;
+      }
+
+      body.theme-dark-emerald input,
+      body.theme-dark-contrast input,
+      body.theme-dark-emerald select,
+      body.theme-dark-contrast select,
+      body.theme-dark-emerald textarea,
+      body.theme-dark-contrast textarea {
+        background-color: #0f172a !important;
+        color: #e2e8f0 !important;
+        border-color: #1f2937 !important;
+      }
+
+      body.theme-dark-contrast input,
+      body.theme-dark-contrast select,
+      body.theme-dark-contrast textarea {
+        background-color: #111827 !important;
+        border-color: #262626 !important;
+      }
     </style>
   <script type="importmap">
 {
@@ -29,7 +111,7 @@
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-slate-50 text-slate-900 antialiased">
+  <body class="bg-slate-50 text-slate-900 antialiased theme-light">
     <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
 </body>
