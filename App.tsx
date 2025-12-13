@@ -112,7 +112,7 @@ export const AppContext = React.createContext<{
   addLoan: (loan: Loan, generatedInstallments: Installment[]) => void;
   updateLoan: (loan: Loan, generatedInstallments: Installment[]) => void;
   deleteLoan: (id: string) => void;
-  payInstallment: (id: string) => void;
+  payInstallment: (id: string, amount?: number) => void;
   addUser: (newUser: User) => void;
   removeUser: (id: string) => void;
   view: string;
@@ -185,14 +185,25 @@ const App: React.FC = () => {
     setInstallments(prev => prev.filter(inst => inst.loanId !== id));
   };
 
-  const payInstallment = (id: string) => {
+  const payInstallment = (id: string, amount?: number) => {
     if (user?.role === UserRole.COLLECTION) {
       alert("Acesso restrito: Cobradores não podem baixar pagamentos, apenas visualizar.");
       return;
     }
-    setInstallments(prev => prev.map(inst => 
-      inst.id === id ? { ...inst, status: InstallmentStatus.PAID, amountPaid: inst.amount, paidDate: new Date().toISOString() } : inst
-    ));
+    setInstallments(prev => prev.map(inst => {
+      if (inst.id !== id) return inst;
+
+      const paymentValue = inst.status === InstallmentStatus.PAID ? 0 : (amount ?? inst.amount);
+      const paidAmount = Math.min(inst.amount, (inst.amountPaid || 0) + paymentValue);
+      const isPaid = paidAmount >= inst.amount;
+
+      return {
+        ...inst,
+        status: isPaid ? InstallmentStatus.PAID : InstallmentStatus.PARTIAL,
+        amountPaid: Number(paidAmount.toFixed(2)),
+        paidDate: new Date().toISOString()
+      };
+    }));
   };
 
   const addUser = (newUser: User) => {

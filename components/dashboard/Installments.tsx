@@ -7,11 +7,14 @@ import { Search, MessageCircle, CheckCircle, Clock, AlertCircle, Bot } from 'luc
 export const InstallmentsView: React.FC = () => {
   const { installments, clients, payInstallment, user } = useContext(AppContext);
   const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'LATE' | 'PAID'>('ALL');
+  const [selectedInstallment, setSelectedInstallment] = useState<Installment | null>(null);
+  const [paymentMode, setPaymentMode] = useState<'INTEREST' | 'CUSTOM'>('INTEREST');
+  const [customAmount, setCustomAmount] = useState(0);
 
   const filtered = installments.filter(inst => {
     if (filter === 'ALL') return true;
     if (filter === 'LATE') return inst.status !== InstallmentStatus.PAID && isLate(inst.dueDate);
-    if (filter === 'PENDING') return inst.status === InstallmentStatus.PENDING && !isLate(inst.dueDate);
+    if (filter === 'PENDING') return (inst.status === InstallmentStatus.PENDING || inst.status === InstallmentStatus.PARTIAL) && !isLate(inst.dueDate);
     return inst.status === filter;
   }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
@@ -43,9 +46,49 @@ export const InstallmentsView: React.FC = () => {
   };
 
   const handlePay = (id: string) => {
-    if (window.confirm('Confirmar recebimento desta parcela?')) {
-        payInstallment(id);
+    const installment = installments.find(item => item.id === id);
+    if (!installment) return;
+
+    setSelectedInstallment(installment);
+    setPaymentMode('INTEREST');
+    setCustomAmount(installment.amount);
+  };
+
+  const getInterestAmount = (inst: Installment) => {
+    const interest = inst.interestAmount ?? Math.max(0, inst.amount - (inst.principalAmount ?? inst.amount));
+    return interest > 0 ? interest : inst.amount;
+  };
+
+  const handleConfirmPayment = () => {
+    if (!selectedInstallment) return;
+
+    const amountToPay = paymentMode === 'INTEREST'
+      ? getInterestAmount(selectedInstallment)
+      : customAmount;
+
+    if (!amountToPay || amountToPay <= 0) {
+      alert('Informe um valor válido para receber.');
+      return;
     }
+
+    payInstallment(selectedInstallment.id, amountToPay);
+    setSelectedInstallment(null);
+  };
+
+  const renderStatus = (inst: Installment, late: boolean) => {
+    if (inst.status === InstallmentStatus.PAID) {
+      return <span className="flex items-center gap-1 text-emerald-600 font-bold"><CheckCircle size={14}/> Pago</span>;
+    }
+
+    if (inst.status === InstallmentStatus.PARTIAL) {
+      return <span className="flex items-center gap-1 text-amber-600 font-bold"><Clock size={14}/> Parcial</span>;
+    }
+
+    if (late) {
+      return <span className="flex items-center gap-1 text-red-600 font-bold"><AlertCircle size={14}/> Atrasada</span>;
+    }
+
+    return <span className="flex items-center gap-1 text-blue-600 font-bold"><Clock size={14}/> A Vencer</span>;
   };
 
   return (
@@ -89,16 +132,13 @@ export const InstallmentsView: React.FC = () => {
                     <td className="p-4">{formatDate(inst.dueDate)}</td>
                     <td className="p-4 font-medium">{client?.name}</td>
                     <td className="p-4 text-slate-500">{inst.number}</td>
-                    <td className="p-4 font-medium">{formatCurrency(inst.amount)}</td>
-                    <td className="p-4">
-                        {inst.status === InstallmentStatus.PAID ? (
-                             <span className="flex items-center gap-1 text-emerald-600 font-bold"><CheckCircle size={14}/> Pago</span>
-                        ) : late ? (
-                            <span className="flex items-center gap-1 text-red-600 font-bold"><AlertCircle size={14}/> Atrasada</span>
-                        ) : (
-                             <span className="flex items-center gap-1 text-blue-600 font-bold"><Clock size={14}/> A Vencer</span>
-                        )}
+                    <td className="p-4 font-medium">
+                      {formatCurrency(inst.amount)}
+                      {inst.amountPaid > 0 && inst.amountPaid < inst.amount && (
+                        <span className="block text-xs text-amber-600 font-semibold">Recebido: {formatCurrency(inst.amountPaid)}</span>
+                      )}
                     </td>
+                    <td className="p-4">{renderStatus(inst, late)}</td>
                     <td className="p-4 flex justify-end gap-2">
                         {/* Botão AI Agent */}
                         <button onClick={() => handleWhatsapp(inst, true)} className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg" title="Cobrar com IA (n8n)">
@@ -136,9 +176,11 @@ export const InstallmentsView: React.FC = () => {
                             <span className="text-xs text-slate-400">Parcela {inst.number}</span>
                         </div>
                         <div className="text-right">
-                             <div className="font-bold text-slate-900">{formatCurrency(inst.amount)}</div>
-                             {late && <div className="text-xs text-red-600 font-bold mt-1">Atrasada</div>}
-                             {inst.status === InstallmentStatus.PAID && <div className="text-xs text-emerald-600 font-bold mt-1">Paga</div>}
+                            <div className="font-bold text-slate-900">{formatCurrency(inst.amount)}</div>
+                            {inst.amountPaid > 0 && inst.amountPaid < inst.amount && (
+                              <div className="text-xs text-amber-600 font-semibold">Recebido: {formatCurrency(inst.amountPaid)}</div>
+                            )}
+                             {renderStatus(inst, late)}
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100">
@@ -158,6 +200,57 @@ export const InstallmentsView: React.FC = () => {
             );
         })}
       </div>
+
+      {selectedInstallment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div className="mb-4">
+              <h3 className="text-xl font-bold text-slate-900">Receber parcela {selectedInstallment.number}</h3>
+              <p className="text-sm text-slate-600">Escolha como deseja registrar este recebimento.</p>
+            </div>
+
+            <div className="space-y-3">
+              <label className={`block border rounded-xl p-3 cursor-pointer ${paymentMode === 'INTEREST' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'}`}>
+                <input
+                  type="radio"
+                  name="paymentMode"
+                  className="mr-2"
+                  checked={paymentMode === 'INTEREST'}
+                  onChange={() => setPaymentMode('INTEREST')}
+                />
+                Receber apenas juros ({formatCurrency(getInterestAmount(selectedInstallment))})
+              </label>
+
+              <label className={`block border rounded-xl p-3 cursor-pointer ${paymentMode === 'CUSTOM' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'}`}>
+                <input
+                  type="radio"
+                  name="paymentMode"
+                  className="mr-2"
+                  checked={paymentMode === 'CUSTOM'}
+                  onChange={() => setPaymentMode('CUSTOM')}
+                />
+                Receber juros + capital (total ou parcial)
+                {paymentMode === 'CUSTOM' && (
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={customAmount}
+                    onChange={e => setCustomAmount(parseFloat(e.target.value))}
+                    className="mt-2 w-full border border-slate-300 rounded-lg p-2"
+                    placeholder="Valor a receber"
+                  />
+                )}
+              </label>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setSelectedInstallment(null)} className="flex-1 py-2 rounded-lg border hover:bg-slate-50">Cancelar</button>
+              <button onClick={handleConfirmPayment} className="flex-1 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700">Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

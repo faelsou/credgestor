@@ -96,6 +96,12 @@ export const LoansView: React.FC = () => {
           remainingPrincipal = Math.max(0, remainingPrincipal - principalPortion);
           break;
         }
+        case LoanModel.INTEREST_ONLY: {
+          interestPortion = amount * rateDecimal;
+          principalPortion = 0;
+          installmentAmount = interestPortion;
+          break;
+        }
         default:
           break;
       }
@@ -133,6 +139,8 @@ export const LoansView: React.FC = () => {
         return 'Price';
       case LoanModel.PARTICULAR:
         return 'Modelo Particular';
+      case LoanModel.INTEREST_ONLY:
+        return 'Somente Juros';
       default:
         return model;
     }
@@ -496,6 +504,7 @@ export const LoansView: React.FC = () => {
                   <option value={LoanModel.SAC}>SAC</option>
                   <option value={LoanModel.PRICE}>Price</option>
                   <option value={LoanModel.PARTICULAR}>Modelo Particular</option>
+                  <option value={LoanModel.INTEREST_ONLY}>Somente Juros</option>
                 </select>
               </div>
 
