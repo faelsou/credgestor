@@ -52,7 +52,8 @@ export enum LoanModel {
   COMPOUND_INTEREST = 'COMPOUND_INTEREST',
   SAC = 'SAC',
   PRICE = 'PRICE',
-  PARTICULAR = 'PARTICULAR'
+  PARTICULAR = 'PARTICULAR',
+  INTEREST_ONLY = 'INTEREST_ONLY'
 }
 
 export enum InstallmentStatus {
