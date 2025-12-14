@@ -98,8 +98,8 @@ export const LoansView: React.FC = () => {
         }
         case LoanModel.INTEREST_ONLY: {
           interestPortion = amount * rateDecimal;
-          principalPortion = 0;
-          installmentAmount = interestPortion;
+          principalPortion = i === installmentsCount ? amount : 0;
+          installmentAmount = interestPortion + principalPortion;
           break;
         }
         default:
