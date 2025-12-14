@@ -59,6 +59,11 @@ export const InstallmentsView: React.FC = () => {
     return interest > 0 ? interest : inst.amount;
   };
 
+  const getPrincipalAmount = (inst: Installment) => {
+    const interest = inst.interestAmount ?? 0;
+    return inst.principalAmount ?? Math.max(0, inst.amount - interest);
+  };
+
   const handleConfirmPayment = () => {
     if (!selectedInstallment) return;
 
@@ -134,6 +139,7 @@ export const InstallmentsView: React.FC = () => {
                     <td className="p-4 text-slate-500">{inst.number}</td>
                     <td className="p-4 font-medium">
                       {formatCurrency(inst.amount)}
+                      <span className="block text-xs text-slate-500">Capital: {formatCurrency(getPrincipalAmount(inst))} • Juros: {formatCurrency(getInterestAmount(inst))}</span>
                       {inst.amountPaid > 0 && inst.amountPaid < inst.amount && (
                         <span className="block text-xs text-amber-600 font-semibold">Recebido: {formatCurrency(inst.amountPaid)}</span>
                       )}
@@ -177,6 +183,7 @@ export const InstallmentsView: React.FC = () => {
                         </div>
                         <div className="text-right">
                             <div className="font-bold text-slate-900">{formatCurrency(inst.amount)}</div>
+                            <div className="text-xs text-slate-500">Capital: {formatCurrency(getPrincipalAmount(inst))} • Juros: {formatCurrency(getInterestAmount(inst))}</div>
                             {inst.amountPaid > 0 && inst.amountPaid < inst.amount && (
                               <div className="text-xs text-amber-600 font-semibold">Recebido: {formatCurrency(inst.amountPaid)}</div>
                             )}

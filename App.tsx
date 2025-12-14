@@ -194,6 +194,37 @@ const App: React.FC = () => {
       if (inst.id !== id) return inst;
 
       const paymentValue = inst.status === InstallmentStatus.PAID ? 0 : (amount ?? inst.amount);
+      const loan = loans.find(l => l.id === inst.loanId);
+
+      if (loan?.model === LoanModel.INTEREST_ONLY) {
+        const interestDue = Math.max(0, inst.interestAmount ?? Math.max(0, inst.amount - (inst.principalAmount ?? 0)));
+        const principalDue = Math.max(0, inst.principalAmount ?? Math.max(0, inst.amount - interestDue));
+        const totalDue = Math.max(0, interestDue + principalDue);
+
+        const appliedPayment = Math.min(paymentValue, totalDue);
+        let remainingPayment = appliedPayment;
+
+        const interestPayment = Math.min(remainingPayment, interestDue);
+        remainingPayment -= interestPayment;
+        const updatedInterest = Number((interestDue - interestPayment).toFixed(2));
+
+        const principalPayment = Math.min(remainingPayment, principalDue);
+        const updatedPrincipal = Number((principalDue - principalPayment).toFixed(2));
+
+        const remainingBalance = Number((updatedInterest + updatedPrincipal).toFixed(2));
+        const isPaid = remainingBalance <= 0;
+
+        return {
+          ...inst,
+          amount: remainingBalance,
+          interestAmount: updatedInterest,
+          principalAmount: updatedPrincipal,
+          amountPaid: Number(((inst.amountPaid || 0) + appliedPayment).toFixed(2)),
+          status: isPaid ? InstallmentStatus.PAID : InstallmentStatus.PARTIAL,
+          paidDate: isPaid ? new Date().toISOString() : inst.paidDate
+        };
+      }
+
       const paidAmount = Math.min(inst.amount, (inst.amountPaid || 0) + paymentValue);
       const isPaid = paidAmount >= inst.amount;
 
