@@ -1,11 +1,43 @@
-version: '3.8'
+version: '3.9'
 
 services:
-  credgestor-app:
-    image: faelsouz/credgestor:latest
-    container_name: credgestor-app
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    environment:
-      - NODE_ENV=production
+  site:
+    image: faelsouz/credgestor:v1.0.0
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=network_public
+
+        # HTTP -> HTTPS
+        - traefik.http.routers.credgestor-web.rule=Host(`credgestor.app.br`,`www.credgestor.app.br`)
+        - traefik.http.routers.credgestor-web.entrypoints=web
+        - traefik.http.routers.credgestor-web.middlewares=credgestor-https-redirect
+        - traefik.http.middlewares.credgestor-https-redirect.redirectscheme.scheme=https
+        - traefik.http.middlewares.credgestor-https-redirect.redirectscheme.permanent=true
+        - traefik.http.routers.credgestor-web.service=credgestor          # 👈 novo
+
+        # HTTPS
+        - traefik.http.routers.credgestor-secure.rule=Host(`credgestor.app.br`,`www.credgestor.app.br`)
+        - traefik.http.routers.credgestor-secure.entrypoints=websecure
+        - traefik.http.routers.credgestor-secure.tls=true
+        - traefik.http.routers.credgestor-secure.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.credgestor-secure.service=credgestor       # 👈 novo
+        - traefik.http.routers.credgestor-secure.tls.domains[0].main=credgestor.app.br     # 👈 ajuda o ACME
+        - traefik.http.routers.credgestor-secure.tls.domains[0].sans=www.credgestor.app.br # 👈 idem
+
+        # Porta interna do Nginx
+        - traefik.http.services.credgestor.loadbalancer.server.port=80
+
+    # Use caminho ABSOLUTO no Swarm (recomendado)
+    # volumes:
+    #  - /var/www/grd-mad/dist:/usr/share/nginx/html:ro
+
+    networks:
+      - network_public
+
+networks:
+  network_public:
+    external: true
